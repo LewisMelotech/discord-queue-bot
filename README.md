@@ -184,6 +184,19 @@ the same image somewhere else with the same `.env`.
    two `data/state.json` files, and things get confusing fast. Only one
    instance of this bot should ever run at a time.
 
+### Using a stack manager (Dockge, Portainer, etc.)
+
+The existing `docker-compose.yml` works as-is — these tools are UIs over
+`docker compose`, not a different format. For Dockge specifically: clone
+the repo directly into its configured stacks directory (default
+`/opt/stacks/<name>`) so it's auto-detected, add `.env` either over SSH or
+via the stack's built-in `.env` editor in the UI, then deploy — it builds
+the image from the Dockerfile automatically on first run since none exists
+yet. After pulling future code updates, a plain restart won't pick up the
+change (the image is locally built, not pulled from a registry) — rebuild
+explicitly, either via the UI's rebuild option if it has one, or
+`docker compose up -d --build` over SSH.
+
 ## Upgrading from an older setup
 
 `CLIENT_ID`, `GUILD_ID`, `STORYTELLER_ROLE_ID`, and `RESULTS_CHANNEL_ID` are
