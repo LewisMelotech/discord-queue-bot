@@ -1,5 +1,6 @@
 services:
   bot:
+    image: ghcr.io/lewismelotech/discord-queue-bot:latest
     build: .
     restart: unless-stopped
     env_file:

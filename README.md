@@ -120,26 +120,18 @@ All commands require the **Manage Server** permission.
    Information** page).
 4. Copy `.env.example` to `.env` and paste in `DISCORD_TOKEN` — that's the
    only secret needed.
-5. Install [Node.js](https://nodejs.org/) 18+ if you don't have it (skip
-   this if running with Docker instead — see below).
-6. Start the bot (`npm start`, or the Docker instructions below). It logs in
-   and automatically registers its slash commands in every server it's in —
-   no separate deploy step, and no need to know the server's ID. This
-   usually takes a few seconds; reload Discord if the commands don't show
-   up right away.
-7. In Discord, run `/setup role:@YourQueueRole channel:#your-channel` once
+5. Start the bot with Docker (below). It logs in and automatically
+   registers its slash commands in every server it's in — no separate
+   deploy step, and no need to know the server's ID. This usually takes a
+   few seconds; reload Discord if the commands don't show up right away.
+6. In Discord, run `/setup role:@YourQueueRole channel:#your-channel` once
    to finish configuration.
-
-## Install & run
-
-```bash
-npm install
-npm start
-```
 
 ## Run with Docker
 
-Steps 1–4 above (Developer Portal setup + `.env`) still apply. Then:
+This is a Docker-only project — no local Node.js install needed anywhere in
+this workflow. Steps 1–4 above (Developer Portal setup + `.env`) still
+apply. Then, from the project folder:
 
 ```bash
 docker compose up -d --build
@@ -153,12 +145,28 @@ Logs:
 docker compose logs -f
 ```
 
-Without Compose, plain Docker works too:
+**A published image also exists** — every push to `main` builds and pushes
+`ghcr.io/lewismelotech/discord-queue-bot:latest` via GitHub Actions (see
+`.github/workflows/docker-publish.yml`). Anywhere you don't need to build
+from source (e.g. a NAS — see below), skip the build entirely:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Without Compose, plain Docker works too — either build locally:
 
 ```bash
 docker build -t storyteller-queue-bot .
 docker run -d --name storyteller-bot --restart unless-stopped \
   --env-file .env -v "$(pwd)/data:/app/data" storyteller-queue-bot
+```
+
+or pull the published image directly:
+
+```bash
+docker run -d --name storyteller-bot --restart unless-stopped \
+  --env-file .env -v "$(pwd)/data:/app/data" ghcr.io/lewismelotech/discord-queue-bot:latest
 ```
 
 ## Data
@@ -171,22 +179,27 @@ across moves.
 
 The bot's identity (its token, and its membership/role in your server)
 lives in Discord, not on any one machine — moving hosts just means running
-the same image somewhere else with the same `.env`.
+the same image somewhere else with the same `.env`. Since a published image
+exists at `ghcr.io/lewismelotech/discord-queue-bot:latest`, the target
+machine doesn't need the source code at all — just `docker-compose.yml`
+and `.env`.
 
-1. **Get the code there.** Easiest if it's on GitHub (see below):
-   `git clone <your-repo-url>` on the new machine. Otherwise, copy the
-   project folder over some other way (scp, rsync, a USB stick).
+1. **Get `docker-compose.yml` onto the target machine** — download that
+   one file (or `git clone` the whole repo if you'd rather have the source
+   too; either works, since `docker compose pull` doesn't need a Dockerfile
+   present).
 2. **Docker + Compose** need to be present on the target machine. Most
    NAS OSes/distros package these already; if not, follow your OS's
    normal Docker install instructions.
-3. **Recreate `.env`** on the new machine with the same `DISCORD_TOKEN` —
-   it's gitignored, so it never comes along with a `git clone` and has to
-   be added by hand each time.
+3. **Recreate `.env`** next to it with the same `DISCORD_TOKEN` — it's
+   gitignored, so it never comes along with a `git clone` or a plain file
+   copy, and has to be added by hand each time.
 4. **Decide on `data/state.json`.** Bring it over (`scp` it into `data/`
    before first start) to keep the existing queue/templates, or leave it
    out for a clean start — either way `/setup` needs running again since
    that also isn't tracked in git.
-5. `docker compose up -d --build` on the new machine.
+5. `docker compose pull && docker compose up -d` on the new machine — no
+   build step, just pulls the published image.
 6. **Stop the old instance first** (`docker compose down` on the original
    machine) before or immediately after starting the new one. The same bot
    token connected twice means both instances receive and act on the same
@@ -197,15 +210,14 @@ the same image somewhere else with the same `.env`.
 ### Using a stack manager (Dockge, Portainer, etc.)
 
 The existing `docker-compose.yml` works as-is — these tools are UIs over
-`docker compose`, not a different format. For Dockge specifically: clone
-the repo directly into its configured stacks directory (default
-`/opt/stacks/<name>`) so it's auto-detected, add `.env` either over SSH or
-via the stack's built-in `.env` editor in the UI, then deploy — it builds
-the image from the Dockerfile automatically on first run since none exists
-yet. After pulling future code updates, a plain restart won't pick up the
-change (the image is locally built, not pulled from a registry) — rebuild
-explicitly, either via the UI's rebuild option if it has one, or
-`docker compose up -d --build` over SSH.
+`docker compose`, not a different format. For Dockge specifically: create
+a new stack in its configured stacks directory (default `/opt/stacks/<name>`)
+containing just `docker-compose.yml` and `.env` — no need to clone the
+whole repo — then deploy. It pulls the published image on first run since
+`build:` is only used if you explicitly ask for a rebuild. After a new
+version is pushed to GHCR, use the UI's Pull/Update button if it has one,
+or `docker compose pull && docker compose up -d` over SSH — this is the
+normal update path now, no rebuild needed.
 
 ## Upgrading from an older setup
 
