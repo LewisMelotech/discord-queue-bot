@@ -157,6 +157,33 @@ Queue, templates, and round state are stored in `data/state.json`, created
 automatically on first run. Back it up if you want to preserve the queue
 across moves.
 
+## Moving to another machine (e.g. a NAS)
+
+The bot's identity (its token, and its membership/role in your server)
+lives in Discord, not on any one machine — moving hosts just means running
+the same image somewhere else with the same `.env`.
+
+1. **Get the code there.** Easiest if it's on GitHub (see below):
+   `git clone <your-repo-url>` on the new machine. Otherwise, copy the
+   project folder over some other way (scp, rsync, a USB stick).
+2. **Docker + Compose** need to be present on the target machine. Most
+   NAS OSes/distros package these already; if not, follow your OS's
+   normal Docker install instructions.
+3. **Recreate `.env`** on the new machine with the same `DISCORD_TOKEN` —
+   it's gitignored, so it never comes along with a `git clone` and has to
+   be added by hand each time.
+4. **Decide on `data/state.json`.** Bring it over (`scp` it into `data/`
+   before first start) to keep the existing queue/templates, or leave it
+   out for a clean start — either way `/setup` needs running again since
+   that also isn't tracked in git.
+5. `docker compose up -d --build` on the new machine.
+6. **Stop the old instance first** (`docker compose down` on the original
+   machine) before or immediately after starting the new one. The same bot
+   token connected twice means both instances receive and act on the same
+   Discord events — DMs get sent twice, queue state diverges between the
+   two `data/state.json` files, and things get confusing fast. Only one
+   instance of this bot should ever run at a time.
+
 ## Upgrading from an older setup
 
 `CLIENT_ID`, `GUILD_ID`, `STORYTELLER_ROLE_ID`, and `RESULTS_CHANNEL_ID` are
