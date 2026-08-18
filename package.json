@@ -1,0 +1,14 @@
+{
+  "name": "storyteller-queue-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that manages a rotating sign-up queue against reusable poll templates.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5"
+  }
+}
