@@ -27,10 +27,18 @@ reorders itself fairly based on how people respond.
 
 ## Commands
 
-- `/setup role:... [channel:...]` (run this first) sets which role's members
-  make up the queue, and optionally a default results channel. Picked
-  natively from Discord's own role/channel pickers — nothing to look up or
-  copy by hand. Re-run it any time to change either.
+- `/setup role:... [channel:...] [logs:...]` (run this first) sets which
+  role's members make up the queue, and optionally a default results
+  channel and a log channel. Picked natively from Discord's own
+  role/channel pickers — nothing to look up or copy by hand. Re-run it any
+  time to change any of them.
+  - `logs` — if set, every time the bot DMs someone it posts a line there
+    (who, which poll, how many slots are still open), plus a follow-up line
+    once they respond: which slot they picked, that they said Not
+    Available, that they snoozed themselves, that their DM couldn't be
+    delivered, or that they timed out after 24h. Off by default — without
+    it, that visibility only exists in ephemeral replies to whoever ran
+    `/polling-start`.
 - `/queue-sync` builds/refreshes the queue from current members of the
   configured role. New members are added to the top (asked before anyone
   already in the rotation); anyone who lost the role is removed. Existing
@@ -77,7 +85,9 @@ reorders itself fairly based on how people respond.
     and any future one) for 30 days, no matter what else happens — passing,
     picking a slot, or anything else doesn't cancel a snooze early. Their
     queue position is untouched, and it lifts automatically once it expires.
-    An admin can end it early for everyone with the queue role at once with
+    The confirmation message tells them how to undo it: `/queue-rejoin`
+    clears their own snooze (open to anyone, no permission needed), or an
+    admin can end it early for everyone with the queue role at once with
     `/clear-snooze`, which also DMs each of them that they're back in.
   - If a DM can't be delivered (DMs closed), the bot posts a notice in the
     round's channel, skips them for this round only, and they keep their
@@ -117,8 +127,11 @@ reorders itself fairly based on how people respond.
   blocked while a round is actively in progress.
 - `/queue-status` shows the current queue order, any round in progress, and
   who's currently snoozed and when they're back.
+- `/queue-rejoin` clears your own snooze early, if you're currently on
+  one — no permission needed, since it only ever touches your own data.
 
-All commands require the **Manage Server** permission.
+All commands require the **Manage Server** permission, except
+`/queue-rejoin`, which anyone can use to clear their own snooze.
 
 ## Getting started
 

@@ -10,6 +10,7 @@ function defaultState() {
     config: {
       storytellerRoleId: null,
       defaultResultsChannelId: null,
+      logChannelId: null,
     },
     // Ordered array of user IDs. Index 0 is next up.
     queue: [],

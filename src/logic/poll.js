@@ -66,6 +66,18 @@ function buildResultsEmbed(title, slots, filled, footerText) {
 
 const REOPEN_HINT = `Can't make it after all? React ${DROP_OUT_EMOJI} on this message to reopen your slot.`;
 
+/** Best-effort post to the configured log channel; a missing config or a send failure is a silent no-op. */
+async function postToLogChannel(client, state, message) {
+  const logChannelId = state.config?.logChannelId;
+  if (!logChannelId) return;
+  try {
+    const channel = await client.channels.fetch(logChannelId);
+    await channel.send(message);
+  } catch (err) {
+    console.error('Failed to post to log channel:', err.message);
+  }
+}
+
 async function sendResultsMessage(client, state, saveState) {
   const { round } = state;
   const channel = await client.channels.fetch(round.channelId);
@@ -148,6 +160,11 @@ async function askNext(client, state, saveState) {
     round.pendingSince = Date.now();
     if (!round.askedThisRound.includes(userId)) round.askedThisRound.push(userId);
     saveState(state);
+    await postToLogChannel(
+      client,
+      state,
+      `📨 Asking <@${userId}> about **${round.title}** (${remaining} slot${remaining === 1 ? '' : 's'} open).`,
+    );
   } catch (err) {
     console.error(`Could not DM ${userId}, skipping for this round:`, err.message);
     if (!round.askedThisRound.includes(userId)) round.askedThisRound.push(userId);
@@ -164,16 +181,20 @@ async function askNext(client, state, saveState) {
     } catch (channelErr) {
       console.error('Also failed to post DM-failure notice in channel:', channelErr.message);
     }
+    await postToLogChannel(client, state, `⚠️ Couldn't DM <@${userId}> for **${round.title}** — DMs likely closed, skipped.`);
     await askNext(client, state, saveState);
   }
 }
 
 async function handleSlotChoice(client, state, saveState, userId, slotIndex) {
   const { round } = state;
+  const slotLabel = round.slots[slotIndex];
   round.filled.push({ slotIndex, userId });
   round.pendingUserId = null;
   round.pendingSince = null;
   state.queue = moveToBottom(state.queue, userId);
+
+  await postToLogChannel(client, state, `✅ <@${userId}> picked **${slotLabel}** for **${round.title}**.`);
 
   if (round.filled.length >= round.slots.length) {
     await sendResultsMessage(client, state, saveState);
@@ -193,6 +214,7 @@ async function handlePass(client, state, saveState, userId) {
   round.pendingSince = null;
   state.queue = moveToFront(state.queue, userId);
   saveState(state);
+  await postToLogChannel(client, state, `⏭️ <@${userId}> said Not Available for **${round.title}**.`);
   await askNext(client, state, saveState);
 }
 
@@ -208,6 +230,7 @@ async function handleSnooze(client, state, saveState, userId) {
   round.pendingUserId = null;
   round.pendingSince = null;
   saveState(state);
+  await postToLogChannel(client, state, `🔕 <@${userId}> won't be asked again for a month (re: **${round.title}**).`);
   await askNext(client, state, saveState);
 }
 
@@ -237,6 +260,7 @@ async function checkForTimeouts(client, state, saveState) {
   } catch (err) {
     console.error('Failed to post response-timeout notice:', err.message);
   }
+  await postToLogChannel(client, state, `⌛ <@${userId}> didn't respond to **${round.title}** within 24h — snoozed for a week.`);
 
   await askNext(client, state, saveState);
 }

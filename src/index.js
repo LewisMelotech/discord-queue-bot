@@ -114,7 +114,9 @@ client.on('interactionCreate', async (interaction) => {
         await handlePass(client, state, saveState, interaction.user.id);
       } else if (action === 'snooze') {
         await interaction.update({
-          content: "Got it — you won't be asked again for a month. An admin can clear this early with /clear-snooze.",
+          content:
+            "Got it — you won't be asked again for a month. Changed your mind? Run /queue-rejoin in the " +
+            'server to come off it early — or an admin can clear everyone\'s snooze at once with /clear-snooze.',
           components: [],
         });
         await handleSnooze(client, state, saveState, interaction.user.id);
