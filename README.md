@@ -226,3 +226,7 @@ no longer used — leftover values in an existing `.env` are simply ignored.
 Run `/setup role:... channel:...` once after upgrading to carry your role
 and results channel over into `data/state.json`; your existing queue and
 templates in there are untouched.
+
+## Legal
+
+[Terms of Service](TERMS_OF_SERVICE.md) · [Privacy Policy](PRIVACY_POLICY.md)
