@@ -63,6 +63,11 @@ line-ups without touching config.
   - If a DM can't be delivered (DMs closed), the bot posts a notice in the
     round's channel, skips them for this round only, and they keep their
     current queue position.
+  - No response within 24 hours → treated like they clicked **Don't ask
+    again for a month**, except snoozed for a week instead: skipped for
+    this round and every round for 7 days, then automatically eligible
+    again. Checked roughly every 15 minutes, and the 24h countdown survives
+    a bot restart since it's based on a persisted timestamp, not a timer.
   - If everyone in the queue has been asked once and slots are still open,
     the bot loops back and offers spare slots to people who already took
     one — so one person can end up covering more than one slot rather than

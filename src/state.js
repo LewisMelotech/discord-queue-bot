@@ -45,6 +45,7 @@ function defaultState() {
  *   askedThisRound: string[],      // userIds contacted at least once this round
  *   ineligibleThisRound: string[], // userIds who passed or couldn't be reached — never asked again this round
  *   pendingUserId: string | null,  // who we're currently waiting on
+ *   pendingSince: number | null,   // epoch ms they were asked — past 24h, checkForTimeouts skips+snoozes them
  *   startedAt: number,
  * }
  *

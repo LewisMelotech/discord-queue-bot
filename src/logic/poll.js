@@ -9,6 +9,9 @@ const { moveToBottom, moveToFront, nextCandidate } = require('./queue');
 const PASS_LABEL = 'Not Available';
 const SNOOZE_LABEL = "Don't ask again for a month";
 const SNOOZE_DAYS = 30;
+const RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const TIMEOUT_SNOOZE_DAYS = 7;
+const TIMEOUT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const DROP_OUT_EMOJI = '❌';
 const BUTTONS_PER_ROW = 5;
 const MAX_SLOT_ROWS = 4; // leaves 1 row free for the pass/snooze buttons (5 action rows max/message)
@@ -100,6 +103,7 @@ async function startRound(client, state, saveState, channelId, template) {
     askedThisRound: [],
     ineligibleThisRound: [],
     pendingUserId: null,
+    pendingSince: null,
     startedAt: Date.now(),
   };
   saveState(state);
@@ -141,6 +145,7 @@ async function askNext(client, state, saveState) {
       components: rows,
     });
     round.pendingUserId = userId;
+    round.pendingSince = Date.now();
     if (!round.askedThisRound.includes(userId)) round.askedThisRound.push(userId);
     saveState(state);
   } catch (err) {
@@ -148,6 +153,7 @@ async function askNext(client, state, saveState) {
     if (!round.askedThisRound.includes(userId)) round.askedThisRound.push(userId);
     if (!round.ineligibleThisRound.includes(userId)) round.ineligibleThisRound.push(userId);
     round.pendingUserId = null;
+    round.pendingSince = null;
     saveState(state);
     try {
       const channel = await client.channels.fetch(round.channelId);
@@ -166,6 +172,7 @@ async function handleSlotChoice(client, state, saveState, userId, slotIndex) {
   const { round } = state;
   round.filled.push({ slotIndex, userId });
   round.pendingUserId = null;
+  round.pendingSince = null;
   state.queue = moveToBottom(state.queue, userId);
 
   if (round.filled.length >= round.slots.length) {
@@ -183,6 +190,7 @@ async function handlePass(client, state, saveState, userId) {
   const { round } = state;
   if (!round.ineligibleThisRound.includes(userId)) round.ineligibleThisRound.push(userId);
   round.pendingUserId = null;
+  round.pendingSince = null;
   state.queue = moveToFront(state.queue, userId);
   saveState(state);
   await askNext(client, state, saveState);
@@ -198,7 +206,38 @@ async function handleSnooze(client, state, saveState, userId) {
   const { round } = state;
   state.snoozedUntil[userId] = Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000;
   round.pendingUserId = null;
+  round.pendingSince = null;
   saveState(state);
+  await askNext(client, state, saveState);
+}
+
+/**
+ * Checked periodically (see TIMEOUT_CHECK_INTERVAL_MS / index.js): if the
+ * person currently being asked hasn't responded within RESPONSE_TIMEOUT_MS,
+ * snoozes them for TIMEOUT_SNOOZE_DAYS and moves on, the same way a passed
+ * or unreachable person is skipped. The timestamp this compares against is
+ * persisted in state, so it survives a bot restart.
+ */
+async function checkForTimeouts(client, state, saveState) {
+  const { round } = state;
+  if (!round || !round.pendingUserId || !round.pendingSince) return;
+  if (Date.now() - round.pendingSince < RESPONSE_TIMEOUT_MS) return;
+
+  const userId = round.pendingUserId;
+  state.snoozedUntil[userId] = Date.now() + TIMEOUT_SNOOZE_DAYS * 24 * 60 * 60 * 1000;
+  round.pendingUserId = null;
+  round.pendingSince = null;
+  saveState(state);
+
+  try {
+    const channel = await client.channels.fetch(round.channelId);
+    await channel.send(
+      `<@${userId}> didn't respond within 24 hours, so they've been snoozed for a week and skipped for this round.`,
+    );
+  } catch (err) {
+    console.error('Failed to post response-timeout notice:', err.message);
+  }
+
   await askNext(client, state, saveState);
 }
 
@@ -265,6 +304,7 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
     askedThisRound: [...remainingFilled.map((f) => f.userId), userId],
     ineligibleThisRound: [userId],
     pendingUserId: null,
+    pendingSince: null,
     startedAt: Date.now(),
   };
   state.lastRound = null;
@@ -280,6 +320,7 @@ module.exports = {
   handleSlotChoice,
   handlePass,
   handleSnooze,
+  checkForTimeouts,
   reopenVacatedSlots,
   buildResultsEmbed,
   PASS_LABEL,
@@ -287,4 +328,5 @@ module.exports = {
   DROP_OUT_EMOJI,
   REOPEN_HINT,
   MAX_SLOTS,
+  TIMEOUT_CHECK_INTERVAL_MS,
 };

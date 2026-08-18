@@ -3,7 +3,15 @@ const path = require('path');
 const { Client, GatewayIntentBits, Partials, Collection, MessageFlags } = require('discord.js');
 const config = require('./config');
 const stateStore = require('./state');
-const { handleSlotChoice, handlePass, handleSnooze, reopenVacatedSlots, DROP_OUT_EMOJI } = require('./logic/poll');
+const {
+  handleSlotChoice,
+  handlePass,
+  handleSnooze,
+  reopenVacatedSlots,
+  checkForTimeouts,
+  DROP_OUT_EMOJI,
+  TIMEOUT_CHECK_INTERVAL_MS,
+} = require('./logic/poll');
 
 // GuildMembers is a privileged intent — enable it for this bot in the
 // Discord Developer Portal under Bot > Privileged Gateway Intents.
@@ -43,9 +51,17 @@ async function registerCommands(guild) {
   }
 }
 
+let timeoutCheckInterval = null;
+
 client.once('clientReady', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   await Promise.all(client.guilds.cache.map(registerCommands));
+
+  const runTimeoutCheck = () => checkForTimeouts(client, state, saveState).catch((err) => {
+    console.error('Error checking for response timeouts:', err);
+  });
+  runTimeoutCheck();
+  timeoutCheckInterval = setInterval(runTimeoutCheck, TIMEOUT_CHECK_INTERVAL_MS);
 });
 
 // Registers commands automatically if the bot is added to a new server
@@ -142,6 +158,7 @@ client.login(config.token).catch((err) => {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`Received ${signal}, shutting down.`);
+    if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
     client.destroy();
     process.exit(0);
   });

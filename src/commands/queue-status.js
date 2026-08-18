@@ -21,7 +21,12 @@ module.exports = {
       );
       content += `\n\n**${state.round.title}** in progress (${state.round.filled.length}/${state.round.slots.length} slots filled)`;
       if (filledLines.length) content += `\n${filledLines.join('\n')}`;
-      if (state.round.pendingUserId) content += `\nWaiting on: <@${state.round.pendingUserId}>`;
+      if (state.round.pendingUserId) {
+        content += `\nWaiting on: <@${state.round.pendingUserId}>`;
+        if (state.round.pendingSince) {
+          content += ` (asked <t:${Math.floor(state.round.pendingSince / 1000)}:R> — skipped and snoozed a week if no reply within 24h)`;
+        }
+      }
     }
 
     const snoozed = Object.entries(state.snoozedUntil).filter(([, until]) => until > Date.now());
