@@ -16,6 +16,11 @@ line-ups without touching config.
   configured role. New members are added to the top (asked before anyone
   already in the rotation); anyone who lost the role is removed. Existing
   order among current members is preserved.
+- `/queue-move user:... direction:Up|Down [by:...]` manually bumps someone
+  toward the front (sooner) or back (later) of the queue, `by` positions at
+  a time (default 1, clamped at either end). Safe to use any time, including
+  mid-round — it only affects who gets asked next, not anything already in
+  progress.
 - `/template-create name:"..." slots:"..."` creates (or updates, if the name
   already exists) a template — a title plus a comma-separated list of slot
   names, e.g. `slots:"Sat {{next}} AM, Sat {{next}} PM, Sun {{next}}"`. Up

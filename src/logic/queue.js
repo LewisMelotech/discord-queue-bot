@@ -28,6 +28,22 @@ function moveToFront(queue, userId) {
 }
 
 /**
+ * Moves a user delta positions through the queue (negative = toward the
+ * front/sooner, positive = toward the back/later), clamped to the ends.
+ * No-op if the user isn't in the queue.
+ */
+function moveByOffset(queue, userId, delta) {
+  const index = queue.indexOf(userId);
+  if (index === -1) return queue;
+  const targetIndex = Math.max(0, Math.min(queue.length - 1, index + delta));
+  if (targetIndex === index) return queue;
+  const next = [...queue];
+  next.splice(index, 1);
+  next.splice(targetIndex, 0, userId);
+  return next;
+}
+
+/**
  * Picks who to ask next this round. Prefers someone who hasn't been asked
  * yet. If everyone in the queue has already been asked at least once and
  * slots are still open, falls back to re-asking people who already hold a
@@ -48,4 +64,4 @@ function nextCandidate(queue, round, snoozedUntil = {}, now = Date.now()) {
   return queue.find((id) => filledUserIds.has(id) && !ineligible.has(id) && !isSnoozed(id)) || null;
 }
 
-module.exports = { syncQueueWithRole, moveToBottom, moveToFront, nextCandidate };
+module.exports = { syncQueueWithRole, moveToBottom, moveToFront, moveByOffset, nextCandidate };
