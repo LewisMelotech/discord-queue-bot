@@ -129,9 +129,13 @@ reorders itself fairly based on how people respond.
   who's currently snoozed and when they're back.
 - `/queue-rejoin` clears your own snooze early, if you're currently on
   one — no permission needed, since it only ever touches your own data.
+- `/queue-position` tells you your own place in the queue — "#3 of 12" —
+  without exposing the full ordering. Open to everyone; also flags if
+  you're currently snoozed.
 
 All commands require the **Manage Server** permission, except
-`/queue-rejoin`, which anyone can use to clear their own snooze.
+`/queue-rejoin` and `/queue-position`, which anyone can use for their own
+data.
 
 ## Getting started
 
