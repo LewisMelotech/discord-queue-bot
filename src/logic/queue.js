@@ -27,6 +27,18 @@ function moveToFront(queue, userId) {
   return [userId, ...rest];
 }
 
+/** Moves a user to a 0-indexed target position, clamped to the queue's bounds, shifting everyone between to make room. */
+function moveToIndex(queue, userId, targetIndex) {
+  const index = queue.indexOf(userId);
+  if (index === -1) return queue;
+  const clamped = Math.max(0, Math.min(queue.length - 1, targetIndex));
+  if (clamped === index) return queue;
+  const next = [...queue];
+  next.splice(index, 1);
+  next.splice(clamped, 0, userId);
+  return next;
+}
+
 /**
  * Moves a user delta positions through the queue (negative = toward the
  * front/sooner, positive = toward the back/later), clamped to the ends.
@@ -35,12 +47,16 @@ function moveToFront(queue, userId) {
 function moveByOffset(queue, userId, delta) {
   const index = queue.indexOf(userId);
   if (index === -1) return queue;
-  const targetIndex = Math.max(0, Math.min(queue.length - 1, index + delta));
-  if (targetIndex === index) return queue;
-  const next = [...queue];
-  next.splice(index, 1);
-  next.splice(targetIndex, 0, userId);
-  return next;
+  return moveToIndex(queue, userId, index + delta);
+}
+
+/**
+ * Moves a user directly to a 1-indexed position (1 = front), shifting
+ * everyone between their old and new spot to make room. Clamped to the
+ * queue's bounds. No-op if the user isn't in the queue.
+ */
+function moveToPosition(queue, userId, position) {
+  return moveToIndex(queue, userId, position - 1);
 }
 
 /**
@@ -64,4 +80,4 @@ function nextCandidate(queue, round, snoozedUntil = {}, now = Date.now()) {
   return queue.find((id) => filledUserIds.has(id) && !ineligible.has(id) && !isSnoozed(id)) || null;
 }
 
-module.exports = { syncQueueWithRole, moveToBottom, moveToFront, moveByOffset, nextCandidate };
+module.exports = { syncQueueWithRole, moveToBottom, moveToFront, moveByOffset, moveToPosition, nextCandidate };

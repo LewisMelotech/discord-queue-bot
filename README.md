@@ -43,11 +43,14 @@ reorders itself fairly based on how people respond.
   configured role. New members are added to the top (asked before anyone
   already in the rotation); anyone who lost the role is removed. Existing
   order among current members is preserved.
-- `/queue-move user:... direction:Up|Down [by:...]` manually bumps someone
-  toward the front (sooner) or back (later) of the queue, `by` positions at
-  a time (default 1, clamped at either end). Safe to use any time, including
-  mid-round — it only affects who gets asked next, not anything already in
-  progress.
+- `/queue-move user:... [position:...] [direction:Up|Down] [by:...]`
+  manually repositions someone in the queue — use exactly one of the two
+  approaches. `position` moves them directly to that 1-indexed spot (1 =
+  front), shifting everyone between their old and new spot to make room.
+  `direction` + `by` instead bumps them toward the front (sooner) or back
+  (later) `by` positions at a time (default 1). Either way it's clamped at
+  the ends, and safe to use any time, including mid-round — it only
+  affects who gets asked next, not anything already in progress.
 - `/template-create name:"..." slots:"..."` creates (or updates, if the name
   already exists) a template — a title plus a comma-separated list of slot
   names, e.g. `slots:"Sat {{next}} AM, Sat {{next}} PM, Sun {{next}}"`. Up
@@ -127,6 +130,9 @@ reorders itself fairly based on how people respond.
   blocked while a round is actively in progress.
 - `/queue-status` shows the current queue order, any round in progress, and
   who's currently snoozed and when they're back.
+- `/clear-snooze` clears every currently-snoozed member of the queue role
+  at once and DMs each of them that they're back in — for when you'd
+  rather reset everyone than wait for individual snoozes to expire.
 - `/queue-rejoin` clears your own snooze early, if you're currently on
   one — no permission needed, since it only ever touches your own data.
 - `/queue-position` tells you your own place in the queue — "#3 of 12" —
