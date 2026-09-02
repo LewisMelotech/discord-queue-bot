@@ -2,8 +2,8 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('disc
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('clear-snooze')
-    .setDescription("Clear everyone's snooze and DM them that they're back in the rotation.")
+    .setName('queue-snooze-clear')
+    .setDescription("Clear the snooze for ALL currently-snoozed members and DM them they're back.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction, state, saveState) {

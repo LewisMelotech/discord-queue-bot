@@ -65,7 +65,7 @@ function moveToPosition(queue, userId, position) {
  * slots are still open, falls back to re-asking people who already hold a
  * slot — so one person can end up covering multiple slots when nobody else
  * is left — skipping anyone who explicitly passed or couldn't be reached
- * this round either way. Snoozed users (see /clear-snooze) are excluded
+ * this round either way. Snoozed users (see /queue-snooze-clear) are excluded
  * entirely, overriding everything else, until their snooze expires.
  */
 function nextCandidate(queue, round, snoozedUntil = {}, now = Date.now()) {

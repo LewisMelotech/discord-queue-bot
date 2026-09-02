@@ -51,10 +51,10 @@ reorders itself fairly based on how people respond.
   (later) `by` positions at a time (default 1). Either way it's clamped at
   the ends, and safe to use any time, including mid-round — it only
   affects who gets asked next, not anything already in progress.
-- `/template-create name:"..." slots:"..."` creates (or updates, if the name
-  already exists) a template — a title plus a comma-separated list of slot
-  names, e.g. `slots:"Sat {{next}} AM, Sat {{next}} PM, Sun {{next}}"`. Up
-  to 20 slots per template.
+- `/template-create name:"..." slots:"..." [intro:...]` creates (or updates,
+  if the name already exists) a template — a title plus a comma-separated
+  list of slot names, e.g. `slots:"Sat {{next}} AM, Sat {{next}} PM, Sun
+  {{next}}"`. Up to 20 slots per template.
   - Put `{{next}}` or `{{next+N}}` anywhere in a slot name (after a day of
     the week — Monday … Sunday, or common abbreviations like "Sat") and
     it's replaced with that day's date when a round starts, computed in UK
@@ -70,8 +70,14 @@ reorders itself fairly based on how people respond.
   - Slot names with no `{{next...}}` placeholder are left exactly as
     typed, so the template never needs editing week to week as long as you
     use the placeholder.
-- `/template-view [name:...]` shows one template's slots, or lists all
-  saved templates if you omit `name`.
+  - `intro` is a custom greeting shown at the top of every DM sent for that
+    template — e.g. "Yo! It's storytime bot here." Leave it out and the bot
+    uses a default: "Hello, I'm the scheduler for **\<server name\>**." Set
+    per template, since re-running `/template-create` on an existing
+    template always replaces the whole thing — omit `intro` on an update
+    and it reverts to the default rather than keeping the old custom one.
+- `/template-view [name:...]` shows one template's slots and greeting, or
+  lists all saved templates if you omit `name`.
 - `/template-delete name:...` removes a saved template.
 - `/polling-start template:... [title:...] [channel:...]` starts a round
   using a saved template (the `template` option autocompletes from what
@@ -91,15 +97,17 @@ reorders itself fairly based on how people respond.
     The confirmation message tells them how to undo it: `/queue-rejoin`
     clears their own snooze (open to anyone, no permission needed), or an
     admin can end it early for everyone with the queue role at once with
-    `/clear-snooze`, which also DMs each of them that they're back in.
-  - If a DM can't be delivered (DMs closed), the bot posts a notice in the
-    round's channel, skips them for this round only, and they keep their
-    current queue position.
+    `/queue-snooze-clear`, which also DMs each of them that they're back in.
+  - If a DM can't be delivered (DMs closed), they're skipped for this round
+    only and keep their current queue position. Only noted in the log
+    channel (if configured) — nothing posted in the round's channel.
   - No response within 24 hours → treated like they clicked **Don't ask
     again for a month**, except snoozed for a week instead: skipped for
     this round and every round for 7 days, then automatically eligible
     again. Checked roughly every 15 minutes, and the 24h countdown survives
     a bot restart since it's based on a persisted timestamp, not a timer.
+    Only noted in the log channel (if configured) — nothing posted in the
+    round's channel for this one either.
   - If everyone in the queue has been asked once and slots are still open,
     the bot loops back and offers spare slots to people who already took
     one — so one person can end up covering more than one slot rather than
@@ -112,6 +120,14 @@ reorders itself fairly based on how people respond.
   far, then clears the round so `/polling-start` can be run again. Anyone
   already locked into a slot keeps their queue position from that; it isn't
   rolled back.
+- `/polling-respond user:... choice:...` lets an admin answer on behalf of
+  whoever the bot is *currently* waiting on — useful if their DMs are
+  closed, or you already know their answer from elsewhere. `choice`
+  autocompletes to that round's open slots plus Not Available and Don't
+  ask again for a month, and behaves exactly as if they'd clicked it
+  themselves (moved to the bottom/top of the queue, snoozed, etc.). Only
+  works for the person currently pending — it'll tell you who that
+  actually is if you target someone else.
 - **Can't make it after all?** Anyone assigned a slot can react with ❌ on
   the results message. The bot vacates every slot that person held, updates
   the results message to show the opening(s), and automatically resumes
@@ -130,7 +146,7 @@ reorders itself fairly based on how people respond.
   blocked while a round is actively in progress.
 - `/queue-status` shows the current queue order, any round in progress, and
   who's currently snoozed and when they're back.
-- `/clear-snooze` clears every currently-snoozed member of the queue role
+- `/queue-snooze-clear` clears every currently-snoozed member of the queue role
   at once and DMs each of them that they're back in — for when you'd
   rather reset everyone than wait for individual snoozes to expire.
 - `/queue-rejoin` clears your own snooze early, if you're currently on
@@ -138,10 +154,17 @@ reorders itself fairly based on how people respond.
 - `/queue-position` tells you your own place in the queue — "#3 of 12" —
   without exposing the full ordering. Open to everyone; also flags if
   you're currently snoozed.
+- `/queue-snooze [days:...]` lets you snooze yourself any time — no active
+  poll needed, and no permission required. Defaults to 30 days; pass
+  `days` for something shorter or longer.
+- `/queue-snooze-user user:... [days:...]` is the admin equivalent for
+  snoozing someone else, same defaults, and DMs them to let them know
+  (unless their DMs are closed, in which case it just fails silently and
+  the snooze still applies).
 
 All commands require the **Manage Server** permission, except
-`/queue-rejoin` and `/queue-position`, which anyone can use for their own
-data.
+`/queue-rejoin`, `/queue-position`, and `/queue-snooze`, which anyone can
+use for their own data.
 
 ## Getting started
 
