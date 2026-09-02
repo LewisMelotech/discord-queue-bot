@@ -88,6 +88,7 @@ async function sendResultsMessage(client, state, saveState) {
   state.lastRound = {
     title: round.title,
     slots: round.slots,
+    intro: round.intro,
     filled: round.filled,
     channelId: round.channelId,
     resultsMessageId: message.id,
@@ -106,11 +107,13 @@ async function startRound(client, state, saveState, channelId, template) {
   if (state.queue.length === 0) {
     throw new Error('The queue is empty. Run /queue-sync first.');
   }
+  const guildName = client.guilds.cache.first()?.name ?? 'the server';
   state.round = {
     id: `${Date.now()}`,
     channelId,
     title: template.name,
     slots: template.slots,
+    intro: template.intro || `Hello, I'm the scheduler for **${guildName}**.`,
     filled: [],
     askedThisRound: [],
     ineligibleThisRound: [],
@@ -147,12 +150,12 @@ async function askNext(client, state, saveState) {
 
   try {
     const user = await client.users.fetch(userId);
-    const intro = alreadyHasSlot
+    const askLine = alreadyHasSlot
       ? `Nobody else is left in the queue — would you like to cover another slot for **${round.title}**?`
       : `It's your turn! Would you like to sign up for **${round.title}**?`;
     await user.send({
       content:
-        `${intro}\n${remaining} slot${remaining === 1 ? '' : 's'} still open. Pick one below, ` +
+        `${round.intro}\n\n${askLine}\n${remaining} slot${remaining === 1 ? '' : 's'} still open. Pick one below, ` +
         `or choose "${PASS_LABEL}" to be asked first next time.`,
       components: rows,
     });
@@ -172,15 +175,6 @@ async function askNext(client, state, saveState) {
     round.pendingUserId = null;
     round.pendingSince = null;
     saveState(state);
-    try {
-      const channel = await client.channels.fetch(round.channelId);
-      await channel.send(
-        `<@${userId}> I couldn't send you a DM (check your privacy settings). ` +
-          `Skipping you for this round — you keep your place in the queue.`,
-      );
-    } catch (channelErr) {
-      console.error('Also failed to post DM-failure notice in channel:', channelErr.message);
-    }
     await postToLogChannel(client, state, `⚠️ Couldn't DM <@${userId}> for **${round.title}** — DMs likely closed, skipped.`);
     await askNext(client, state, saveState);
   }
@@ -221,7 +215,7 @@ async function handlePass(client, state, saveState, userId) {
 /**
  * Snoozes a user for SNOOZE_DAYS: nextCandidate excludes them from every
  * round (this one and any future one) regardless of anything else, until
- * the snooze expires or an admin clears it with /clear-snooze. Queue
+ * the snooze expires or an admin clears it with /queue-snooze-clear. Queue
  * position is left untouched.
  */
 async function handleSnooze(client, state, saveState, userId) {
@@ -252,14 +246,6 @@ async function checkForTimeouts(client, state, saveState) {
   round.pendingSince = null;
   saveState(state);
 
-  try {
-    const channel = await client.channels.fetch(round.channelId);
-    await channel.send(
-      `<@${userId}> didn't respond within 24 hours, so they've been snoozed for a week and skipped for this round.`,
-    );
-  } catch (err) {
-    console.error('Failed to post response-timeout notice:', err.message);
-  }
   await postToLogChannel(client, state, `⌛ <@${userId}> didn't respond to **${round.title}** within 24h — snoozed for a week.`);
 
   await askNext(client, state, saveState);
@@ -324,6 +310,7 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
     channelId: last.channelId,
     title: last.title,
     slots: last.slots,
+    intro: last.intro,
     filled: remainingFilled,
     askedThisRound: [...remainingFilled.map((f) => f.userId), userId],
     ineligibleThisRound: [userId],
@@ -349,6 +336,7 @@ module.exports = {
   buildResultsEmbed,
   PASS_LABEL,
   SNOOZE_LABEL,
+  SNOOZE_DAYS,
   DROP_OUT_EMOJI,
   REOPEN_HINT,
   MAX_SLOTS,

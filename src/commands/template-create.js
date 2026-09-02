@@ -14,6 +14,12 @@ module.exports = {
         .setName('slots')
         .setDescription('Comma-separated slots, e.g. "Sat {{next}} AM, Sun {{next}}" ({{next+N}} = N weeks later)')
         .setRequired(true),
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('intro')
+        .setDescription('Custom DM greeting (default: "Hello, I\'m the scheduler for <server>.")')
+        .setRequired(false),
     ),
 
   async execute(interaction, state, saveState) {
@@ -23,6 +29,7 @@ module.exports = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    const intro = interaction.options.getString('intro')?.trim() || null;
 
     if (!name) {
       await interaction.reply({ content: 'Template name cannot be empty.', flags: MessageFlags.Ephemeral });
@@ -42,12 +49,16 @@ module.exports = {
 
     const key = name.toLowerCase();
     const isUpdate = Boolean(state.templates[key]);
-    state.templates[key] = { name, slots };
+    state.templates[key] = { name, slots, intro };
     saveState(state);
 
-    await interaction.reply({
-      content: `${isUpdate ? 'Updated' : 'Created'} template **${name}** with slots: ${slots.join(', ')}`,
-      flags: MessageFlags.Ephemeral,
-    });
+    const lines = [`${isUpdate ? 'Updated' : 'Created'} template **${name}** with slots: ${slots.join(', ')}`];
+    lines.push(
+      intro
+        ? `DM greeting: "${intro}"`
+        : 'DM greeting: default ("Hello, I\'m the scheduler for <server>.") — pass intro: to customize.',
+    );
+
+    await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   },
 };

@@ -24,7 +24,7 @@ function defaultState() {
     lastRound: null,
     // userId -> epoch ms until which they're skipped by every round,
     // regardless of any other action. Cleared automatically once it's
-    // passed, or in bulk via /clear-snooze.
+    // passed, or in bulk via /queue-snooze-clear.
     snoozedUntil: {},
   };
 }
@@ -32,8 +32,9 @@ function defaultState() {
 /*
  * template shape (state.templates[name.toLowerCase()]):
  * {
- *   name: string,    // display title, e.g. "Weekend Storytelling"
- *   slots: string[], // slot labels in order, e.g. ["Friday", "Saturday AM", ...]
+ *   name: string,        // display title, e.g. "Weekend Storytelling"
+ *   slots: string[],     // slot labels in order, e.g. ["Friday", "Saturday AM", ...]
+ *   intro: string | null, // custom DM greeting; null means use the auto-generated default
  * }
  *
  * round shape:
@@ -42,6 +43,7 @@ function defaultState() {
  *   channelId: string,        // where the ping + final results get posted
  *   title: string,            // copied from the template at start time
  *   slots: string[],          // copied from the template at start time
+ *   intro: string,            // resolved DM greeting (template's custom one, or the default) — fixed for the round
  *   filled: [{ slotIndex: number, userId: string }], // a userId can appear more than once
  *   askedThisRound: string[],      // userIds contacted at least once this round
  *   ineligibleThisRound: string[], // userIds who passed or couldn't be reached — never asked again this round
@@ -54,6 +56,7 @@ function defaultState() {
  * {
  *   title: string,
  *   slots: string[],
+ *   intro: string,
  *   filled: [{ slotIndex: number, userId: string }],
  *   channelId: string,
  *   resultsMessageId: string,

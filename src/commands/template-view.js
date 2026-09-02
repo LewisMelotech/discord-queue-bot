@@ -40,6 +40,10 @@ module.exports = {
     }
 
     const slotLines = template.slots.map((s, i) => `${i + 1}. ${s}`);
-    await interaction.reply({ content: `**${template.name}**\n${slotLines.join('\n')}`, flags: MessageFlags.Ephemeral });
+    const introLine = template.intro ? `Greeting: "${template.intro}"` : 'Greeting: default';
+    await interaction.reply({
+      content: `**${template.name}**\n${introLine}\n${slotLines.join('\n')}`,
+      flags: MessageFlags.Ephemeral,
+    });
   },
 };
