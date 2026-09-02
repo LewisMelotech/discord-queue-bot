@@ -180,7 +180,11 @@ async function askNext(client, state, saveState) {
   }
 }
 
-async function handleSlotChoice(client, state, saveState, userId, slotIndex) {
+function adminNote(respondedByAdminId) {
+  return respondedByAdminId ? ` (recorded on their behalf by <@${respondedByAdminId}> via /polling-respond)` : '';
+}
+
+async function handleSlotChoice(client, state, saveState, userId, slotIndex, respondedByAdminId = null) {
   const { round } = state;
   const slotLabel = round.slots[slotIndex];
   round.filled.push({ slotIndex, userId });
@@ -188,7 +192,11 @@ async function handleSlotChoice(client, state, saveState, userId, slotIndex) {
   round.pendingSince = null;
   state.queue = moveToBottom(state.queue, userId);
 
-  await postToLogChannel(client, state, `✅ <@${userId}> picked **${slotLabel}** for **${round.title}**.`);
+  await postToLogChannel(
+    client,
+    state,
+    `✅ <@${userId}> picked **${slotLabel}** for **${round.title}**.${adminNote(respondedByAdminId)}`,
+  );
 
   if (round.filled.length >= round.slots.length) {
     await sendResultsMessage(client, state, saveState);
@@ -201,14 +209,18 @@ async function handleSlotChoice(client, state, saveState, userId, slotIndex) {
   await askNext(client, state, saveState);
 }
 
-async function handlePass(client, state, saveState, userId) {
+async function handlePass(client, state, saveState, userId, respondedByAdminId = null) {
   const { round } = state;
   if (!round.ineligibleThisRound.includes(userId)) round.ineligibleThisRound.push(userId);
   round.pendingUserId = null;
   round.pendingSince = null;
   state.queue = moveToFront(state.queue, userId);
   saveState(state);
-  await postToLogChannel(client, state, `⏭️ <@${userId}> said Not Available for **${round.title}**.`);
+  await postToLogChannel(
+    client,
+    state,
+    `⏭️ <@${userId}> said Not Available for **${round.title}**.${adminNote(respondedByAdminId)}`,
+  );
   await askNext(client, state, saveState);
 }
 
@@ -218,13 +230,17 @@ async function handlePass(client, state, saveState, userId) {
  * the snooze expires or an admin clears it with /queue-snooze-clear. Queue
  * position is left untouched.
  */
-async function handleSnooze(client, state, saveState, userId) {
+async function handleSnooze(client, state, saveState, userId, respondedByAdminId = null) {
   const { round } = state;
   state.snoozedUntil[userId] = Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000;
   round.pendingUserId = null;
   round.pendingSince = null;
   saveState(state);
-  await postToLogChannel(client, state, `🔕 <@${userId}> won't be asked again for a month (re: **${round.title}**).`);
+  await postToLogChannel(
+    client,
+    state,
+    `🔕 <@${userId}> won't be asked again for a month (re: **${round.title}**).${adminNote(respondedByAdminId)}`,
+  );
   await askNext(client, state, saveState);
 }
 

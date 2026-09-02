@@ -127,7 +127,9 @@ reorders itself fairly based on how people respond.
   ask again for a month, and behaves exactly as if they'd clicked it
   themselves (moved to the bottom/top of the queue, snoozed, etc.). Only
   works for the person currently pending — it'll tell you who that
-  actually is if you target someone else.
+  actually is if you target someone else. The log channel entry for a
+  response recorded this way notes which admin did it, so it's clear it
+  wasn't the person's own click.
 - **Can't make it after all?** Anyone assigned a slot can react with ❌ on
   the results message. The bot vacates every slot that person held, updates
   the results message to show the opening(s), and automatically resumes

@@ -54,13 +54,13 @@ module.exports = {
 
     if (choice === 'pass') {
       await interaction.reply({ content: `Recorded <@${user.id}> as Not Available.`, flags: MessageFlags.Ephemeral });
-      await handlePass(interaction.client, state, saveState, user.id);
+      await handlePass(interaction.client, state, saveState, user.id, interaction.user.id);
       return;
     }
 
     if (choice === 'snooze') {
       await interaction.reply({ content: `Snoozed <@${user.id}> for a month.`, flags: MessageFlags.Ephemeral });
-      await handleSnooze(interaction.client, state, saveState, user.id);
+      await handleSnooze(interaction.client, state, saveState, user.id, interaction.user.id);
       return;
     }
 
@@ -77,6 +77,6 @@ module.exports = {
 
     const slotLabel = round.slots[slotIndex];
     await interaction.reply({ content: `Recorded <@${user.id}> for **${slotLabel}**.`, flags: MessageFlags.Ephemeral });
-    await handleSlotChoice(interaction.client, state, saveState, user.id, slotIndex);
+    await handleSlotChoice(interaction.client, state, saveState, user.id, slotIndex, interaction.user.id);
   },
 };
