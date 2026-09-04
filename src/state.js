@@ -49,6 +49,7 @@ function defaultState() {
  *   ineligibleThisRound: string[], // userIds who passed or couldn't be reached — never asked again this round
  *   pendingUserId: string | null,  // who we're currently waiting on
  *   pendingSince: number | null,   // epoch ms they were asked — past 24h, checkForTimeouts skips+snoozes them
+ *   resultsMessageId: string | null, // the live results message, posted at round start and edited as slots fill
  *   startedAt: number,
  * }
  *

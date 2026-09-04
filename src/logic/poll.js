@@ -78,11 +78,53 @@ async function postToLogChannel(client, state, message) {
   }
 }
 
-async function sendResultsMessage(client, state, saveState) {
+/** Posts the results message the moment a round starts, all slots unfilled — this is what gets edited live from here on. */
+async function postLiveResultsMessage(client, state, saveState) {
+  const { round } = state;
+  const channel = await client.channels.fetch(round.channelId);
+  const embed = buildResultsEmbed(round.title, round.slots, round.filled);
+  const message = await channel.send({ embeds: [embed] });
+  round.resultsMessageId = message.id;
+  saveState(state);
+}
+
+/** Best-effort: edits the round's live results message to reflect the current fill state. Never throws. */
+async function updateLiveResultsMessage(client, state) {
+  const { round } = state;
+  if (!round?.resultsMessageId) return;
+  try {
+    const channel = await client.channels.fetch(round.channelId);
+    const message = await channel.messages.fetch(round.resultsMessageId);
+    await message.edit({ embeds: [buildResultsEmbed(round.title, round.slots, round.filled)] });
+  } catch (err) {
+    console.error('Failed to update live results message:', err.message);
+  }
+}
+
+/**
+ * Finalizes the round's results message: edits the live message (or posts a
+ * new one if it's somehow missing) to show the final state with the
+ * drop-out reopen hint, reacts with the reopen emoji, and records it as
+ * state.lastRound.
+ */
+async function finalizeResultsMessage(client, state, saveState) {
   const { round } = state;
   const channel = await client.channels.fetch(round.channelId);
   const embed = buildResultsEmbed(round.title, round.slots, round.filled, REOPEN_HINT);
-  const message = await channel.send({ embeds: [embed] });
+
+  let message = null;
+  if (round.resultsMessageId) {
+    try {
+      message = await channel.messages.fetch(round.resultsMessageId);
+      await message.edit({ embeds: [embed] });
+    } catch (err) {
+      console.error('Failed to finalize live results message, posting a new one:', err.message);
+      message = null;
+    }
+  }
+  if (!message) {
+    message = await channel.send({ embeds: [embed] });
+  }
   await message.react(DROP_OUT_EMOJI).catch((err) => console.error('Failed to add drop-out reaction:', err.message));
 
   state.lastRound = {
@@ -119,9 +161,11 @@ async function startRound(client, state, saveState, channelId, template) {
     ineligibleThisRound: [],
     pendingUserId: null,
     pendingSince: null,
+    resultsMessageId: null,
     startedAt: Date.now(),
   };
   saveState(state);
+  await postLiveResultsMessage(client, state, saveState);
   await askNext(client, state, saveState);
 }
 
@@ -138,7 +182,7 @@ async function askNext(client, state, saveState) {
   const userId = nextCandidate(state.queue, round, state.snoozedUntil, Date.now());
 
   if (!userId) {
-    await sendResultsMessage(client, state, saveState);
+    await finalizeResultsMessage(client, state, saveState);
     state.round = null;
     saveState(state);
     return;
@@ -199,13 +243,14 @@ async function handleSlotChoice(client, state, saveState, userId, slotIndex, res
   );
 
   if (round.filled.length >= round.slots.length) {
-    await sendResultsMessage(client, state, saveState);
+    await finalizeResultsMessage(client, state, saveState);
     state.round = null;
     saveState(state);
     return;
   }
 
   saveState(state);
+  await updateLiveResultsMessage(client, state);
   await askNext(client, state, saveState);
 }
 
@@ -281,10 +326,13 @@ async function stopRound(client, state, saveState) {
   try {
     const channel = await client.channels.fetch(round.channelId);
     const embed = buildResultsEmbed(`${round.title} (stopped early)`, round.slots, round.filled);
-    await channel.send({
-      content: 'Polling was stopped by an admin before all slots were filled.',
-      embeds: [embed],
-    });
+    if (round.resultsMessageId) {
+      const message = await channel.messages.fetch(round.resultsMessageId);
+      await message.edit({ embeds: [embed] });
+    } else {
+      await channel.send({ embeds: [embed] });
+    }
+    await channel.send('Polling was stopped by an admin before all slots were filled.');
   } catch (err) {
     console.error('Failed to post stop notice:', err.message);
   }
@@ -313,9 +361,12 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
   const vacatedLabels = vacatedEntries.map((f) => last.slots[f.slotIndex]).join(', ');
 
   try {
+    // Drops back to "in progress" styling (no reopen-hint footer) since the
+    // round below is about to reopen and start editing this same message
+    // live again.
     const channel = await client.channels.fetch(last.channelId);
     const message = await channel.messages.fetch(last.resultsMessageId);
-    await message.edit({ embeds: [buildResultsEmbed(last.title, last.slots, remainingFilled, REOPEN_HINT)] });
+    await message.edit({ embeds: [buildResultsEmbed(last.title, last.slots, remainingFilled)] });
     await channel.send(`⚠️ <@${userId}> can no longer do **${vacatedLabels}** — reopening the queue to fill it.`);
   } catch (err) {
     console.error('Failed to update results message for drop-out:', err.message);
@@ -332,6 +383,7 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
     ineligibleThisRound: [userId],
     pendingUserId: null,
     pendingSince: null,
+    resultsMessageId: last.resultsMessageId,
     startedAt: Date.now(),
   };
   state.lastRound = null;

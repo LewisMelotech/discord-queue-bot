@@ -83,9 +83,13 @@ reorders itself fairly based on how people respond.
   using a saved template (the `template` option autocompletes from what
   you've created). Pass `title` to override just this run's title (e.g. a
   one-off "Halloween Storytelling" using the regular weekend template) —
-  the saved template itself is untouched. The bot DMs the person at the top
-  of the queue asking if they want to sign up, with a button per slot plus
-  **Not Available** and **Don't ask again for a month**.
+  the saved template itself is untouched. It immediately posts a results
+  message in the channel with every slot shown `_unfilled_` — that same
+  message then gets edited in place as slots fill, rather than only
+  appearing once the round finishes, so anyone watching the channel can see
+  it fill up live. The bot DMs the person at the top of the queue asking if
+  they want to sign up, with a button per slot plus **Not Available** and
+  **Don't ask again for a month**.
   - Pick a slot → they're locked into that slot and moved to the **bottom**
     of the queue.
   - Not Available → they're moved to the **top** of the queue (asked first
@@ -112,12 +116,13 @@ reorders itself fairly based on how people respond.
     the bot loops back and offers spare slots to people who already took
     one — so one person can end up covering more than one slot rather than
     leaving it unfilled, rotating fairly if more than one person is willing.
-  - This repeats automatically until all slots are filled, then the bot
-    posts the final line-up as a message in the channel, titled with the
-    template's name.
+  - This repeats automatically until all slots are filled, at which point
+    that same live message gets its final edit (adding the ❌ drop-out hint
+    below) rather than a new one being posted.
 - `/polling-stop` cancels the in-progress round early (started by mistake,
-  wrong template, whatever) — posts a notice showing whatever was filled so
-  far, then clears the round so `/polling-start` can be run again. Anyone
+  wrong template, whatever) — edits the live results message to mark it
+  "(stopped early)" with whatever was filled so far, posts a short notice,
+  then clears the round so `/polling-start` can be run again. Anyone
   already locked into a slot keeps their queue position from that; it isn't
   rolled back.
 - `/polling-respond user:... choice:...` lets an admin answer on behalf of
