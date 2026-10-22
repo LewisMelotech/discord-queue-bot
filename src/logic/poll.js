@@ -11,7 +11,9 @@ const SNOOZE_LABEL = "Don't ask again for a month";
 const SNOOZE_DAYS = 30;
 const RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const TIMEOUT_SNOOZE_DAYS = 7;
-const TIMEOUT_MESSAGE = 'Sorry you did not respond in time.';
+const TIMEOUT_MESSAGE =
+  "Sorry you did not respond in time. You won't be asked again for a week — " +
+  'run /queue-rejoin in the server any time to come off it early.';
 const TIMEOUT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const DROP_OUT_EMOJI = '❌';
 const BUTTONS_PER_ROW = 5;
