@@ -115,10 +115,13 @@ reorders itself fairly based on how people respond.
   - No response within 24 hours → treated like they clicked **Don't ask
     again for a month**, except snoozed for a week instead: skipped for
     this round and every round for 7 days, then automatically eligible
-    again. Checked roughly every 15 minutes, and the 24h countdown survives
-    a bot restart since it's based on a persisted timestamp, not a timer.
-    Only noted in the log channel (if configured) — nothing posted in the
-    round's channel for this one either.
+    again. The bot also DMs them "Sorry you did not respond in time." so
+    they know they've been skipped, along with a reminder that
+    `/queue-rejoin` lifts the snooze early (silently skipped if their DMs
+    have since closed). Checked roughly every 15 minutes, and the 24h
+    countdown survives a bot restart since it's based on a persisted
+    timestamp, not a timer. Only noted in the log channel (if configured)
+    — nothing posted in the round's channel for this one either.
   - If everyone in the queue has been asked once and slots are still open,
     the bot loops back and offers spare slots to people who already took
     one — so one person can end up covering more than one slot rather than
