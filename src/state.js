@@ -11,6 +11,10 @@ function defaultState() {
       storytellerRoleId: null,
       defaultResultsChannelId: null,
       logChannelId: null,
+      // How long before each event to DM whoever's in it, in ms, longest
+      // first. null = the default (24h and 1h); [] = reminders off. Set
+      // via /reminders.
+      reminderLeadTimesMs: null,
     },
     // Ordered array of user IDs. Index 0 is next up.
     queue: [],
@@ -26,6 +30,10 @@ function defaultState() {
     // regardless of any other action. Cleared automatically once it's
     // passed, or in bulk via /queue-snooze-clear.
     snoozedUntil: {},
+    // One entry per slot with a start time, still to come, that someone's
+    // in. Kept apart from round/lastRound so reminders still go out after
+    // the next round starts. Dropped once the event starts.
+    upcomingEvents: [],
   };
 }
 
@@ -35,14 +43,17 @@ function defaultState() {
  *   name: string,        // display title, e.g. "Weekend Storytelling"
  *   slots: string[],     // slot labels in order, e.g. ["Friday", "Saturday AM", ...]
  *   intro: string | null, // custom DM greeting; null means use the auto-generated default
+ *   time: string | null,  // "HH:MM" UK start time for slots whose label doesn't include one; null = none
  * }
  *
  * round shape:
  * {
  *   id: string,               // unique id, invalidates stale button clicks after a restart/new round
+ *   eventGroupId: string,     // ties upcomingEvents to this round; kept when a drop-out reopens it (new id)
  *   channelId: string,        // where the ping + final results get posted
  *   title: string,            // copied from the template at start time
  *   slots: string[],          // copied from the template at start time
+ *   slotTimes: (number | null)[], // epoch ms each slot starts, null if unknown (see dates.slotStartTimes)
  *   intro: string,            // resolved DM greeting (template's custom one, or the default) — fixed for the round
  *   filled: [{ slotIndex: number, userId: string }], // a userId can appear more than once
  *   askedThisRound: string[],      // userIds contacted at least once this round
@@ -61,6 +72,18 @@ function defaultState() {
  *   filled: [{ slotIndex: number, userId: string }],
  *   channelId: string,
  *   resultsMessageId: string,
+ *   eventGroupId: string,
+ *   slotTimes: (number | null)[],
+ * }
+ *
+ * upcomingEvents entry shape:
+ * {
+ *   groupId: string,     // the round's eventGroupId
+ *   slotIndex: number,
+ *   title: string,
+ *   slotLabel: string,
+ *   startsAt: number,    // epoch ms
+ *   attendees: { [userId]: { addedAt: number, sent: number[] } }, // sent = lead times (ms) already handled
  * }
  */
 

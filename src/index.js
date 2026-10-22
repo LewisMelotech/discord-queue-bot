@@ -12,6 +12,7 @@ const {
   DROP_OUT_EMOJI,
   TIMEOUT_CHECK_INTERVAL_MS,
 } = require('./logic/poll');
+const { checkForReminders, REMINDER_CHECK_INTERVAL_MS } = require('./logic/reminders');
 
 // GuildMembers is a privileged intent — enable it for this bot in the
 // Discord Developer Portal under Bot > Privileged Gateway Intents.
@@ -52,6 +53,7 @@ async function registerCommands(guild) {
 }
 
 let timeoutCheckInterval = null;
+let reminderCheckInterval = null;
 
 client.once('clientReady', async () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -62,6 +64,12 @@ client.once('clientReady', async () => {
   });
   runTimeoutCheck();
   timeoutCheckInterval = setInterval(runTimeoutCheck, TIMEOUT_CHECK_INTERVAL_MS);
+
+  const runReminderCheck = () => checkForReminders(client, state, saveState).catch((err) => {
+    console.error('Error sending event reminders:', err);
+  });
+  runReminderCheck();
+  reminderCheckInterval = setInterval(runReminderCheck, REMINDER_CHECK_INTERVAL_MS);
 });
 
 // Registers commands automatically if the bot is added to a new server
@@ -161,6 +169,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`Received ${signal}, shutting down.`);
     if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+    if (reminderCheckInterval) clearInterval(reminderCheckInterval);
     client.destroy();
     process.exit(0);
   });

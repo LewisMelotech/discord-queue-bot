@@ -5,6 +5,8 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const { moveToBottom, moveToFront, nextCandidate } = require('./queue');
+const { postToLogChannel } = require('./log-channel');
+const { syncEventReminders, cancelEventReminders } = require('./reminders');
 
 const PASS_LABEL = 'Not Available';
 const SNOOZE_LABEL = "Don't ask again for a month";
@@ -66,18 +68,6 @@ function buildResultsEmbed(title, slots, filled, footerText) {
 
 const REOPEN_HINT = `Can't make it after all? React ${DROP_OUT_EMOJI} on this message to reopen your slot.`;
 
-/** Best-effort post to the configured log channel; a missing config or a send failure is a silent no-op. */
-async function postToLogChannel(client, state, message) {
-  const logChannelId = state.config?.logChannelId;
-  if (!logChannelId) return;
-  try {
-    const channel = await client.channels.fetch(logChannelId);
-    await channel.send(message);
-  } catch (err) {
-    console.error('Failed to post to log channel:', err.message);
-  }
-}
-
 /** Posts the results message the moment a round starts, all slots unfilled — this is what gets edited live from here on. */
 async function postLiveResultsMessage(client, state, saveState) {
   const { round } = state;
@@ -134,6 +124,8 @@ async function finalizeResultsMessage(client, state, saveState) {
     filled: round.filled,
     channelId: round.channelId,
     resultsMessageId: message.id,
+    eventGroupId: round.eventGroupId,
+    slotTimes: round.slotTimes,
   };
   saveState(state);
 }
@@ -150,11 +142,14 @@ async function startRound(client, state, saveState, channelId, template) {
     throw new Error('The queue is empty. Run /queue-sync first.');
   }
   const guildName = client.guilds.cache.first()?.name ?? 'the server';
+  const id = `${Date.now()}`;
   state.round = {
-    id: `${Date.now()}`,
+    id,
+    eventGroupId: id,
     channelId,
     title: template.name,
     slots: template.slots,
+    slotTimes: template.slotTimes ?? template.slots.map(() => null),
     intro: template.intro || `Hello, I'm the scheduler for **${guildName}**.`,
     filled: [],
     askedThisRound: [],
@@ -235,6 +230,7 @@ async function handleSlotChoice(client, state, saveState, userId, slotIndex, res
   round.pendingUserId = null;
   round.pendingSince = null;
   state.queue = moveToBottom(state.queue, userId);
+  syncEventReminders(state, round);
 
   await postToLogChannel(
     client,
@@ -317,9 +313,11 @@ async function checkForTimeouts(client, state, saveState) {
  * just wants to abandon it). Posts a notice with whatever was filled so
  * far — this is a distinct outcome from a normal completion, so it does
  * NOT set state.lastRound: dropped-out-slot reopening only applies to
- * rounds that ran to completion. Returns false if there's no active round.
+ * rounds that ran to completion. Whoever's already in a slot keeps their
+ * event reminders unless cancelReminders is set. Returns false if there's
+ * no active round.
  */
-async function stopRound(client, state, saveState) {
+async function stopRound(client, state, saveState, cancelReminders = false) {
   const { round } = state;
   if (!round) return false;
 
@@ -337,6 +335,7 @@ async function stopRound(client, state, saveState) {
     console.error('Failed to post stop notice:', err.message);
   }
 
+  if (cancelReminders) cancelEventReminders(state, round.eventGroupId);
   state.round = null;
   saveState(state);
   return true;
@@ -374,9 +373,11 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
 
   state.round = {
     id: `${Date.now()}`,
+    eventGroupId: last.eventGroupId,
     channelId: last.channelId,
     title: last.title,
     slots: last.slots,
+    slotTimes: last.slotTimes,
     intro: last.intro,
     filled: remainingFilled,
     askedThisRound: [...remainingFilled.map((f) => f.userId), userId],
@@ -387,6 +388,7 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
     startedAt: Date.now(),
   };
   state.lastRound = null;
+  syncEventReminders(state, state.round);
   saveState(state);
   await askNext(client, state, saveState);
   return true;

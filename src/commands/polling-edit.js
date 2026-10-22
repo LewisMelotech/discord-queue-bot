@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { moveToBottom } = require('../logic/queue');
 const { buildResultsEmbed, REOPEN_HINT } = require('../logic/poll');
+const { syncEventReminders } = require('../logic/reminders');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -78,6 +79,7 @@ module.exports = {
       summary = `Removed <@${user.id}> from **${slotLabel}**.`;
     }
 
+    syncEventReminders(state, last);
     saveState(state);
 
     try {

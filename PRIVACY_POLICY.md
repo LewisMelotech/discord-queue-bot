@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: 2026-08-18_
+_Last updated: 2026-10-22_
 
 This Privacy Policy explains what data the **Storyteller Scehduler** Discord
 bot ("the Bot") collects, how it's used, and how it's stored.
@@ -20,6 +20,8 @@ messages — it may store:
 - Your Discord user ID
 - Your position in the sign-up queue
 - Which slot(s), if any, you're assigned to in a given round
+- When those slots start, and which event reminders you've been sent for
+  them (removed once the slot starts)
 - Whether you've asked to be skipped ("snoozed") and until when
 - The server, channel, and role IDs the Bot is configured to use
 
@@ -34,7 +36,8 @@ The Bot does **not** collect or store:
 
 Data is used solely to operate the sign-up queue: determining whose turn it
 is, direct messaging you to ask if you'd like to sign up, tracking slot
-assignments, and posting results in the configured channel.
+assignments, reminding you by direct message before a slot you're in
+starts, and posting results in the configured channel.
 
 ## How data is stored
 
