@@ -11,9 +11,10 @@ function defaultState() {
       storytellerRoleId: null,
       defaultResultsChannelId: null,
       logChannelId: null,
-      // "HH:MM" UK time to DM whoever's in a slot on the morning of its
-      // day. null = the default (09:00); "off" = reminders disabled. Set
-      // via /reminders.
+      // Whether to DM whoever's in a slot on the morning of its day, and
+      // at what "HH:MM" UK time (null = 09:00). Off until turned on with
+      // /reminders-setup.
+      remindersEnabled: false,
       reminderTime: null,
     },
     // Ordered array of user IDs. Index 0 is next up.
