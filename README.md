@@ -17,8 +17,8 @@ reorders itself fairly based on how people respond.
 - **Reusable templates** — define a poll's title and named slots once
   (e.g. `Fri`, `Sat AM`, `Sat PM`, `Sun`), run it every week. Slot names
   can auto-fill next week's date.
-- **Event reminders** — everyone in a slot gets a DM on the morning of
-  that day (9am by default), so nobody forgets their turn.
+- **Event reminders** — turn them on and everyone in a slot gets a DM on
+  the morning of that day (9am by default), so nobody forgets their turn.
 - **Self-healing** — no response within 24 hours, or explicitly asking
   not to be bothered for a month, snoozes someone automatically; dropping
   out after being assigned reopens that slot and resumes polling.
@@ -129,9 +129,9 @@ reorders itself fairly based on how people respond.
   - This repeats automatically until all slots are filled, at which point
     that same live message gets its final edit (adding the ❌ drop-out hint
     below) rather than a new one being posted.
-  - The reply to `/polling-start` says when event reminders will go out
-    and lists any slot that won't get one (no day of the week in its
-    name).
+  - If event reminders are on, the reply to `/polling-start` says when
+    they'll go out and lists any slot that won't get one (no day of the
+    week in its name).
 - `/polling-stop [cancel-reminders:...]` cancels the in-progress round
   early (started by mistake, wrong template, whatever) — edits the live
   results message to mark it "(stopped early)" with whatever was filled so
@@ -166,10 +166,14 @@ reorders itself fairly based on how people respond.
   of the queue like a normal slot pickup, or leaves their position alone.
   Edits update the results message in place. Only works between rounds —
   blocked while a round is actively in progress.
-- `/reminders [time:...]` shows when event reminders go out and every
-  upcoming slot that has one queued (which day, and who's in it). Pass
-  `time` to change the time of day they're sent, UK time — `"9am"` (the
-  default), `"08:30"`, and so on — or `"off"` to stop them.
+- `/reminders-setup [enabled:...] [time:...]` turns event reminders on or
+  off and sets what time of day they go out, UK time. They're **off**
+  until you turn them on. `enabled:True` turns them on at 9am (or
+  whatever time was last set); `time:"08:30"`, `"9am"` and so on sets
+  the time and turns them on in one go; `enabled:False` turns them off
+  again, keeping the time for next time. Run it with no options to see
+  the current setting and every upcoming slot that has someone in it
+  (which day, and who).
   - On the day of each slot, at that time, the bot DMs whoever's in it. If
     someone's in more than one slot that day, they get one DM listing all
     of them.
@@ -231,7 +235,8 @@ use for their own data.
    takes a few seconds; reload Discord if the commands don't show up right
    away.
 6. In Discord, run `/setup role:@YourQueueRole channel:#your-channel` once
-   to finish configuration.
+   to finish configuration. Optionally run `/reminders-setup time:9am` too,
+   to DM people on the morning of their slot.
 
 ## Running the bot
 

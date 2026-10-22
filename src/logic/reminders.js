@@ -4,10 +4,15 @@ const { ukDateTimeToEpoch, ukEndOfDay } = require('./dates');
 const DEFAULT_REMINDER_TIME = '09:00';
 const REMINDER_CHECK_INTERVAL_MS = 60 * 1000;
 
-/** "HH:MM" UK time the morning-of reminder goes out, or null if reminders are off. Never set means the default. */
+/** The configured "HH:MM" UK reminder time, on or off. Never set means the default. ("off" was an older way of disabling.) */
+function configuredReminderTime(state) {
+  const time = state.config.reminderTime;
+  return time && time !== 'off' ? time : DEFAULT_REMINDER_TIME;
+}
+
+/** "HH:MM" UK time the morning-of reminder goes out, or null while reminders are off — the default until /reminders-setup turns them on. */
 function reminderTime(state) {
-  const value = state.config.reminderTime ?? DEFAULT_REMINDER_TIME;
-  return value === 'off' ? null : value;
+  return state.config.remindersEnabled ? configuredReminderTime(state) : null;
 }
 
 /** ["a"] -> "a", ["a", "b", "c"] -> "a, b and c". */
@@ -129,6 +134,7 @@ async function checkForReminders(client, state, saveState) {
 
 module.exports = {
   reminderTime,
+  configuredReminderTime,
   syncEventReminders,
   cancelEventReminders,
   checkForReminders,
