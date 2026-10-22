@@ -17,6 +17,8 @@ reorders itself fairly based on how people respond.
 - **Reusable templates** — define a poll's title and named slots once
   (e.g. `Fri`, `Sat AM`, `Sat PM`, `Sun`), run it every week. Slot names
   can auto-fill next week's date.
+- **Event reminders** — everyone in a slot gets a DM on the morning of
+  that day (9am by default), so nobody forgets their turn.
 - **Self-healing** — no response within 24 hours, or explicitly asking
   not to be bothered for a month, snoozes someone automatically; dropping
   out after being assigned reopens that slot and resumes polling.
@@ -76,6 +78,11 @@ reorders itself fairly based on how people respond.
     per template, since re-running `/template-create` on an existing
     template always replaces the whole thing — omit `intro` on an update
     and it reverts to the default rather than keeping the old custom one.
+  - **Event reminders** work out which day a slot is on from the same
+    day-of-week word: its next occurrence, or `{{next+N}}` weeks later if
+    the label has that placeholder. This works whether or not the label
+    has a placeholder (`"Sat AM"` is the coming Saturday). A slot name
+    with no day of the week in it doesn't get a reminder.
 - `/template-view [name:...]` shows one template's slots and greeting, or
   lists all saved templates if you omit `name`.
 - `/template-delete name:...` removes a saved template.
@@ -122,12 +129,17 @@ reorders itself fairly based on how people respond.
   - This repeats automatically until all slots are filled, at which point
     that same live message gets its final edit (adding the ❌ drop-out hint
     below) rather than a new one being posted.
-- `/polling-stop` cancels the in-progress round early (started by mistake,
-  wrong template, whatever) — edits the live results message to mark it
-  "(stopped early)" with whatever was filled so far, posts a short notice,
-  then clears the round so `/polling-start` can be run again. Anyone
-  already locked into a slot keeps their queue position from that; it isn't
-  rolled back.
+  - The reply to `/polling-start` says when event reminders will go out
+    and lists any slot that won't get one (no day of the week in its
+    name).
+- `/polling-stop [cancel-reminders:...]` cancels the in-progress round
+  early (started by mistake, wrong template, whatever) — edits the live
+  results message to mark it "(stopped early)" with whatever was filled so
+  far, posts a short notice, then clears the round so `/polling-start` can
+  be run again. Anyone already locked into a slot keeps their queue
+  position from that; it isn't rolled back. They keep their event
+  reminders too, unless you pass `cancel-reminders:True` (e.g. the round
+  was started by mistake).
 - `/polling-respond user:... choice:...` lets an admin answer on behalf of
   whoever the bot is *currently* waiting on — useful if their DMs are
   closed, or you already know their answer from elsewhere. `choice`
@@ -154,6 +166,23 @@ reorders itself fairly based on how people respond.
   of the queue like a normal slot pickup, or leaves their position alone.
   Edits update the results message in place. Only works between rounds —
   blocked while a round is actively in progress.
+- `/reminders [time:...]` shows when event reminders go out and every
+  upcoming slot that has one queued (which day, and who's in it). Pass
+  `time` to change the time of day they're sent, UK time — `"9am"` (the
+  default), `"08:30"`, and so on — or `"off"` to stop them.
+  - On the day of each slot, at that time, the bot DMs whoever's in it. If
+    someone's in more than one slot that day, they get one DM listing all
+    of them.
+  - It's whoever's in the slot at the time: picking a slot, an admin's
+    `/polling-edit`, and a ❌ drop-out all update who gets one. Someone
+    who only joins a slot after that morning's reminder time doesn't get
+    one, since they've only just signed up.
+  - Checked every minute, and each reminder is recorded once sent, so a
+    restart never repeats one. If the bot was offline at reminder time, it
+    catches up as soon as it's back, as long as it's still that day.
+  - The DM links the results message so people can ❌ out if they can't
+    make it (while that's still the latest round). Each reminder is noted
+    in the log channel, as is a reminder that couldn't be delivered.
 - `/queue-status` shows the current queue order, any round in progress, and
   who's currently snoozed and when they're back.
 - `/queue-snooze-clear` clears every currently-snoozed member of the queue role

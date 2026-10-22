@@ -11,6 +11,10 @@ function defaultState() {
       storytellerRoleId: null,
       defaultResultsChannelId: null,
       logChannelId: null,
+      // "HH:MM" UK time to DM whoever's in a slot on the morning of its
+      // day. null = the default (09:00); "off" = reminders disabled. Set
+      // via /reminders.
+      reminderTime: null,
     },
     // Ordered array of user IDs. Index 0 is next up.
     queue: [],
@@ -26,6 +30,10 @@ function defaultState() {
     // regardless of any other action. Cleared automatically once it's
     // passed, or in bulk via /queue-snooze-clear.
     snoozedUntil: {},
+    // One entry per slot on a known day, not yet over, that someone's in.
+    // Kept apart from round/lastRound so reminders still go out after the
+    // next round starts. Dropped once that day is over.
+    upcomingEvents: [],
   };
 }
 
@@ -40,9 +48,11 @@ function defaultState() {
  * round shape:
  * {
  *   id: string,               // unique id, invalidates stale button clicks after a restart/new round
+ *   eventGroupId: string,     // ties upcomingEvents to this round; kept when a drop-out reopens it (new id)
  *   channelId: string,        // where the ping + final results get posted
  *   title: string,            // copied from the template at start time
  *   slots: string[],          // copied from the template at start time
+ *   slotDates: (string | null)[], // "YYYY-MM-DD" UK day each slot falls on, null if unknown (see dates.slotDates)
  *   intro: string,            // resolved DM greeting (template's custom one, or the default) — fixed for the round
  *   filled: [{ slotIndex: number, userId: string }], // a userId can appear more than once
  *   askedThisRound: string[],      // userIds contacted at least once this round
@@ -61,6 +71,18 @@ function defaultState() {
  *   filled: [{ slotIndex: number, userId: string }],
  *   channelId: string,
  *   resultsMessageId: string,
+ *   eventGroupId: string,
+ *   slotDates: (string | null)[],
+ * }
+ *
+ * upcomingEvents entry shape:
+ * {
+ *   groupId: string,     // the round's eventGroupId
+ *   slotIndex: number,
+ *   title: string,
+ *   slotLabel: string,
+ *   date: string,        // "YYYY-MM-DD", UK
+ *   attendees: { [userId]: { addedAt: number, reminded: boolean } },
  * }
  */
 
