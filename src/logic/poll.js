@@ -11,6 +11,7 @@ const SNOOZE_LABEL = "Don't ask again for a month";
 const SNOOZE_DAYS = 30;
 const RESPONSE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const TIMEOUT_SNOOZE_DAYS = 7;
+const TIMEOUT_MESSAGE = 'Sorry you did not respond in time.';
 const TIMEOUT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const DROP_OUT_EMOJI = '❌';
 const BUTTONS_PER_ROW = 5;
@@ -292,9 +293,10 @@ async function handleSnooze(client, state, saveState, userId, respondedByAdminId
 /**
  * Checked periodically (see TIMEOUT_CHECK_INTERVAL_MS / index.js): if the
  * person currently being asked hasn't responded within RESPONSE_TIMEOUT_MS,
- * snoozes them for TIMEOUT_SNOOZE_DAYS and moves on, the same way a passed
- * or unreachable person is skipped. The timestamp this compares against is
- * persisted in state, so it survives a bot restart.
+ * snoozes them for TIMEOUT_SNOOZE_DAYS, DMs them a short follow-up, and
+ * moves on, the same way a passed or unreachable person is skipped. The
+ * timestamp this compares against is persisted in state, so it survives a
+ * bot restart.
  */
 async function checkForTimeouts(client, state, saveState) {
   const { round } = state;
@@ -306,6 +308,13 @@ async function checkForTimeouts(client, state, saveState) {
   round.pendingUserId = null;
   round.pendingSince = null;
   saveState(state);
+
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send(TIMEOUT_MESSAGE);
+  } catch (err) {
+    console.error(`Could not DM ${userId} about timing out:`, err.message);
+  }
 
   await postToLogChannel(client, state, `⌛ <@${userId}> didn't respond to **${round.title}** within 24h — snoozed for a week.`);
 
