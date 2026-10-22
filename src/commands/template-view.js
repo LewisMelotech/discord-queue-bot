@@ -41,9 +41,8 @@ module.exports = {
 
     const slotLines = template.slots.map((s, i) => `${i + 1}. ${s}`);
     const introLine = template.intro ? `Greeting: "${template.intro}"` : 'Greeting: default';
-    const timeLine = template.time ? `Start time: ${template.time} UK (slots without their own time)` : 'Start time: none';
     await interaction.reply({
-      content: `**${template.name}**\n${introLine}\n${timeLine}\n${slotLines.join('\n')}`,
+      content: `**${template.name}**\n${introLine}\n${slotLines.join('\n')}`,
       flags: MessageFlags.Ephemeral,
     });
   },

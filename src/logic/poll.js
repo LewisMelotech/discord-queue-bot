@@ -125,7 +125,7 @@ async function finalizeResultsMessage(client, state, saveState) {
     channelId: round.channelId,
     resultsMessageId: message.id,
     eventGroupId: round.eventGroupId,
-    slotTimes: round.slotTimes,
+    slotDates: round.slotDates,
   };
   saveState(state);
 }
@@ -149,7 +149,7 @@ async function startRound(client, state, saveState, channelId, template) {
     channelId,
     title: template.name,
     slots: template.slots,
-    slotTimes: template.slotTimes ?? template.slots.map(() => null),
+    slotDates: template.slotDates ?? template.slots.map(() => null),
     intro: template.intro || `Hello, I'm the scheduler for **${guildName}**.`,
     filled: [],
     askedThisRound: [],
@@ -377,7 +377,7 @@ async function reopenVacatedSlots(client, state, saveState, userId) {
     channelId: last.channelId,
     title: last.title,
     slots: last.slots,
-    slotTimes: last.slotTimes,
+    slotDates: last.slotDates,
     intro: last.intro,
     filled: remainingFilled,
     askedThisRound: [...remainingFilled.map((f) => f.userId), userId],

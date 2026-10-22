@@ -17,9 +17,8 @@ reorders itself fairly based on how people respond.
 - **Reusable templates** — define a poll's title and named slots once
   (e.g. `Fri`, `Sat AM`, `Sat PM`, `Sun`), run it every week. Slot names
   can auto-fill next week's date.
-- **Event reminders** — everyone in a slot gets a DM 24 hours and 1 hour
-  before it starts (or whenever you configure), so nobody forgets their
-  turn.
+- **Event reminders** — everyone in a slot gets a DM on the morning of
+  that day (9am by default), so nobody forgets their turn.
 - **Self-healing** — no response within 24 hours, or explicitly asking
   not to be bothered for a month, snoozes someone automatically; dropping
   out after being assigned reopens that slot and resumes polling.
@@ -54,10 +53,10 @@ reorders itself fairly based on how people respond.
   (later) `by` positions at a time (default 1). Either way it's clamped at
   the ends, and safe to use any time, including mid-round — it only
   affects who gets asked next, not anything already in progress.
-- `/template-create name:"..." slots:"..." [intro:...] [time:...]` creates
-  (or updates, if the name already exists) a template — a title plus a
-  comma-separated list of slot names, e.g. `slots:"Sat {{next}} AM, Sat
-  {{next}} PM, Sun {{next}}"`. Up to 20 slots per template.
+- `/template-create name:"..." slots:"..." [intro:...]` creates (or updates,
+  if the name already exists) a template — a title plus a comma-separated
+  list of slot names, e.g. `slots:"Sat {{next}} AM, Sat {{next}} PM, Sun
+  {{next}}"`. Up to 20 slots per template.
   - Put `{{next}}` or `{{next+N}}` anywhere in a slot name (after a day of
     the week — Monday … Sunday, or common abbreviations like "Sat") and
     it's replaced with that day's date when a round starts, computed in UK
@@ -79,15 +78,11 @@ reorders itself fairly based on how people respond.
     per template, since re-running `/template-create` on an existing
     template always replaces the whole thing — omit `intro` on an update
     and it reverts to the default rather than keeping the old custom one.
-  - **Start times (for event reminders).** A slot gets reminders when the
-    bot can tell when it starts: a day of the week (same rule as
-    `{{next}}`, and `{{next+N}}` pushes it out N weeks) plus a time. Put
-    the time in the slot name — `"Sat {{next}} 10:00"`, `"Sun {{next}}
-    7pm"` — or set `time:"19:00"` on the template as the default for any
-    slot that doesn't name its own. Times are UK time, like the dates;
-    reminder DMs show the time in each person's own timezone. A slot with
-    no day or no time just doesn't get reminders. Like `intro`, `time` is
-    replaced on every update, so omit it and it's cleared.
+  - **Event reminders** work out which day a slot is on from the same
+    day-of-week word: its next occurrence, or `{{next+N}}` weeks later if
+    the label has that placeholder. This works whether or not the label
+    has a placeholder (`"Sat AM"` is the coming Saturday). A slot name
+    with no day of the week in it doesn't get a reminder.
 - `/template-view [name:...]` shows one template's slots and greeting, or
   lists all saved templates if you omit `name`.
 - `/template-delete name:...` removes a saved template.
@@ -131,9 +126,9 @@ reorders itself fairly based on how people respond.
   - This repeats automatically until all slots are filled, at which point
     that same live message gets its final edit (adding the ❌ drop-out hint
     below) rather than a new one being posted.
-  - The reply to `/polling-start` lists which slots will get event
-    reminders and when they start, plus any slot that won't (no start
-    time), so a missing time is easy to spot before anyone signs up.
+  - The reply to `/polling-start` says when event reminders will go out
+    and lists any slot that won't get one (no day of the week in its
+    name).
 - `/polling-stop [cancel-reminders:...]` cancels the in-progress round
   early (started by mistake, wrong template, whatever) — edits the live
   results message to mark it "(stopped early)" with whatever was filled so
@@ -168,21 +163,21 @@ reorders itself fairly based on how people respond.
   of the queue like a normal slot pickup, or leaves their position alone.
   Edits update the results message in place. Only works between rounds —
   blocked while a round is actively in progress.
-- `/reminders [times:...]` shows the current reminder schedule and every
-  upcoming event that has reminders queued (who's in it and when it
-  starts). Pass `times` to change when reminders go out — a comma-separated
-  list like `"24h, 1h"` (the default) or `"2d, 2h, 30m"`, up to 5, each at
-  most 14 days — or `"off"` to stop them. It applies to everything already
-  scheduled too.
-  - Reminders are DMed to whoever's in the slot at the time — picking a
-    slot, an admin's `/polling-edit`, and a ❌ drop-out all update who gets
-    one. Someone who joins a slot late only gets the reminders still ahead
-    of them (pick a slot 5 hours before and you get the 1h one, not a
-    late 24h one).
+- `/reminders [time:...]` shows when event reminders go out and every
+  upcoming slot that has one queued (which day, and who's in it). Pass
+  `time` to change the time of day they're sent, UK time — `"9am"` (the
+  default), `"08:30"`, and so on — or `"off"` to stop them.
+  - On the day of each slot, at that time, the bot DMs whoever's in it. If
+    someone's in more than one slot that day, they get one DM listing all
+    of them.
+  - It's whoever's in the slot at the time: picking a slot, an admin's
+    `/polling-edit`, and a ❌ drop-out all update who gets one. Someone
+    who only joins a slot after that morning's reminder time doesn't get
+    one, since they've only just signed up.
   - Checked every minute, and each reminder is recorded once sent, so a
-    restart never repeats one. If the bot was offline when one was due,
-    it goes out as soon as it's back, as long as the event hasn't started.
-  - The DM links the results message so they can ❌ out if they can't
+    restart never repeats one. If the bot was offline at reminder time, it
+    catches up as soon as it's back, as long as it's still that day.
+  - The DM links the results message so people can ❌ out if they can't
     make it (while that's still the latest round). Each reminder is noted
     in the log channel, as is a reminder that couldn't be delivered.
 - `/queue-status` shows the current queue order, any round in progress, and

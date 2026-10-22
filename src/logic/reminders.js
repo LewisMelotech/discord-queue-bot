@@ -1,66 +1,31 @@
 const { postToLogChannel } = require('./log-channel');
+const { ukDateTimeToEpoch, ukEndOfDay } = require('./dates');
 
-const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
-const DEFAULT_LEAD_TIMES_MS = [24 * HOUR_MS, HOUR_MS];
-const MAX_LEAD_TIMES = 5;
-const MAX_LEAD_TIME_MS = 14 * DAY_MS;
-const REMINDER_CHECK_INTERVAL_MS = MINUTE_MS;
-const UNIT_MS = { d: DAY_MS, h: HOUR_MS, m: MINUTE_MS };
+const DEFAULT_REMINDER_TIME = '09:00';
+const REMINDER_CHECK_INTERVAL_MS = 60 * 1000;
 
-/** How long before each event to remind people, longest first. Null (never set) means the default. */
-function leadTimes(state) {
-  return state.config.reminderLeadTimesMs ?? DEFAULT_LEAD_TIMES_MS;
+/** "HH:MM" UK time the morning-of reminder goes out, or null if reminders are off. Never set means the default. */
+function reminderTime(state) {
+  const value = state.config.reminderTime ?? DEFAULT_REMINDER_TIME;
+  return value === 'off' ? null : value;
 }
 
-/**
- * Parses "24h, 1h" / "2d" / "1h30m" into lead times in ms, longest first.
- * "off" or "none" gives [] (reminders disabled). Returns null if anything
- * is unparseable or out of range.
- */
-function parseLeadTimes(input) {
-  const trimmed = input.trim().toLowerCase();
-  if (trimmed === 'off' || trimmed === 'none') return [];
-  const values = [];
-  for (const part of trimmed.split(',').map((s) => s.trim()).filter(Boolean)) {
-    if (!/^(\d+\s*[dhm]\s*)+$/.test(part)) return null;
-    let ms = 0;
-    for (const [, amount, unit] of part.matchAll(/(\d+)\s*([dhm])/g)) ms += parseInt(amount, 10) * UNIT_MS[unit];
-    if (ms <= 0 || ms > MAX_LEAD_TIME_MS) return null;
-    values.push(ms);
-  }
-  const unique = [...new Set(values)];
-  if (unique.length === 0 || unique.length > MAX_LEAD_TIMES) return null;
-  return unique.sort((a, b) => b - a);
-}
-
-/** 86400000 -> "24h", 172800000 -> "2d", 5400000 -> "1h30m". */
-function formatLeadTime(ms) {
-  if (ms >= 2 * DAY_MS && ms % DAY_MS === 0) return `${ms / DAY_MS}d`;
-  const hours = Math.floor(ms / HOUR_MS);
-  const minutes = Math.round((ms % HOUR_MS) / MINUTE_MS);
-  return `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}`;
-}
-
-/** [24h, 1h] -> "24h and 1h". */
-function describeLeadTimes(leads) {
-  const labels = leads.map(formatLeadTime);
-  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}` : labels[0];
+/** ["a"] -> "a", ["a", "b", "c"] -> "a, b and c". */
+function joinList(items) {
+  return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : items[0];
 }
 
 /**
  * Brings state.upcomingEvents in line with a round's (or the last completed
- * round's) slot assignments: one entry per slot that has a start time, is
- * still in the future, and has someone in it. Call it whenever who's in
- * which slot changes. Someone newly added only gets the reminders that are
- * still ahead of them — picking a slot 5h before it starts skips the 24h
- * one rather than sending it straight away. No-op for rounds saved before
- * reminders existed (no eventGroupId/slotTimes).
+ * round's) slot assignments: one entry per slot that falls on a known day,
+ * that day isn't over yet, and someone's in it. Call it whenever who's in
+ * which slot changes. Someone added after that day's reminder time doesn't
+ * get one — they've only just signed up. No-op for rounds saved before
+ * reminders existed (no eventGroupId/slotDates).
  */
 function syncEventReminders(state, source, now = Date.now()) {
-  const { eventGroupId, slotTimes } = source;
-  if (!eventGroupId || !slotTimes) return;
+  const { eventGroupId, slotDates } = source;
+  if (!eventGroupId || !slotDates) return;
 
   const previous = new Map(
     state.upcomingEvents.filter((e) => e.groupId === eventGroupId).map((e) => [e.slotIndex, e]),
@@ -68,15 +33,15 @@ function syncEventReminders(state, source, now = Date.now()) {
   const next = state.upcomingEvents.filter((e) => e.groupId !== eventGroupId);
 
   source.slots.forEach((label, slotIndex) => {
-    const startsAt = slotTimes[slotIndex];
-    if (!startsAt || startsAt <= now) return;
+    const date = slotDates[slotIndex];
+    if (!date || ukEndOfDay(date) <= now) return;
     const userIds = [...new Set(source.filled.filter((f) => f.slotIndex === slotIndex).map((f) => f.userId))];
     if (userIds.length === 0) return;
     const attendees = {};
     for (const userId of userIds) {
-      attendees[userId] = previous.get(slotIndex)?.attendees[userId] ?? { addedAt: now, sent: [] };
+      attendees[userId] = previous.get(slotIndex)?.attendees[userId] ?? { addedAt: now, reminded: false };
     }
-    next.push({ groupId: eventGroupId, slotIndex, title: source.title, slotLabel: label, startsAt, attendees });
+    next.push({ groupId: eventGroupId, slotIndex, title: source.title, slotLabel: label, date, attendees });
   });
 
   state.upcomingEvents = next;
@@ -92,9 +57,9 @@ function cancelEventReminders(state, eventGroupId) {
  * only works while that's still the latest completed round, so link it
  * then, and otherwise send them to an admin.
  */
-async function dropOutHint(client, state, event) {
+async function dropOutHint(client, state, events) {
   const last = state.lastRound;
-  if (last?.eventGroupId === event.groupId && last.resultsMessageId) {
+  if (last?.resultsMessageId && events.some((e) => e.groupId === last.eventGroupId)) {
     try {
       const channel = await client.channels.fetch(last.channelId);
       return (
@@ -108,65 +73,62 @@ async function dropOutHint(client, state, event) {
   return "Can't make it any more? Let an admin know as soon as you can.";
 }
 
-async function sendReminder(client, state, event, userId) {
-  const startsAt = Math.floor(event.startsAt / 1000);
+/** One DM per person per check, even if they're in more than one slot today. */
+async function sendReminder(client, state, userId, events) {
+  const labelsByTitle = new Map();
+  for (const e of events) labelsByTitle.set(e.title, [...(labelsByTitle.get(e.title) ?? []), `**${e.slotLabel}**`]);
+  const slots = joinList([...labelsByTitle].map(([title, labels]) => `${joinList(labels)} in **${title}**`));
   try {
     const user = await client.users.fetch(userId);
     await user.send(
-      `⏰ Reminder: you're down for **${event.slotLabel}** in **${event.title}**, starting <t:${startsAt}:F> ` +
-        `(<t:${startsAt}:R>).\n${await dropOutHint(client, state, event)}`,
+      `☀️ Morning! Just a reminder that you're down for ${slots} today.\n${await dropOutHint(client, state, events)}`,
     );
-    await postToLogChannel(
-      client,
-      state,
-      `⏰ Reminded <@${userId}> about **${event.slotLabel}** (${event.title}), starting <t:${startsAt}:R>.`,
-    );
+    await postToLogChannel(client, state, `☀️ Sent <@${userId}> their reminder for ${slots}.`);
   } catch (err) {
     console.error(`Could not DM ${userId} their event reminder:`, err.message);
-    await postToLogChannel(
-      client,
-      state,
-      `⚠️ Couldn't DM <@${userId}> their reminder for **${event.slotLabel}** (${event.title}) — DMs likely closed.`,
-    );
+    await postToLogChannel(client, state, `⚠️ Couldn't DM <@${userId}> their reminder for ${slots} — DMs likely closed.`);
   }
 }
 
 /**
- * Checked every REMINDER_CHECK_INTERVAL_MS (see index.js): DMs each person
- * in an upcoming slot once per configured lead time as it comes due. If
- * several are due at once (e.g. the bot was offline through one), only one
- * DM goes out — its relative timestamp shows the real time left. Each
- * reminder is marked sent before the DM is attempted and persisted, so a
- * restart or a failed DM never repeats one. Events that have started are
- * dropped.
+ * Checked every REMINDER_CHECK_INTERVAL_MS (see index.js): once a slot's
+ * day reaches the configured reminder time, DMs everyone in it. If the bot
+ * was offline at that time, it catches up as soon as it's back, as long as
+ * it's still that day. Each reminder is marked sent and persisted before
+ * the DM is attempted, so a restart or a failed DM never repeats one.
+ * Events are dropped once their day is over.
  */
 async function checkForReminders(client, state, saveState) {
   const now = Date.now();
-  const leads = leadTimes(state);
-  const upcoming = state.upcomingEvents.filter((e) => e.startsAt > now);
+  const upcoming = state.upcomingEvents.filter((e) => ukEndOfDay(e.date) > now);
   if (upcoming.length !== state.upcomingEvents.length) {
     state.upcomingEvents = upcoming;
     saveState(state);
   }
 
+  const time = reminderTime(state);
+  if (!time) return;
+
+  const due = new Map(); // userId -> events
   for (const event of upcoming) {
+    const sendAt = ukDateTimeToEpoch(event.date, time);
+    if (now < sendAt) continue;
     for (const [userId, attendee] of Object.entries(event.attendees)) {
-      const due = leads.filter(
-        (lead) =>
-          !attendee.sent.includes(lead) && event.startsAt - lead <= now && event.startsAt - lead >= attendee.addedAt,
-      );
-      if (due.length === 0) continue;
-      attendee.sent.push(...due);
-      saveState(state);
-      await sendReminder(client, state, event, userId);
+      if (attendee.reminded || attendee.addedAt >= sendAt) continue;
+      attendee.reminded = true;
+      due.set(userId, [...(due.get(userId) ?? []), event]);
     }
+  }
+  if (due.size === 0) return;
+
+  saveState(state);
+  for (const [userId, events] of due) {
+    await sendReminder(client, state, userId, events);
   }
 }
 
 module.exports = {
-  leadTimes,
-  parseLeadTimes,
-  describeLeadTimes,
+  reminderTime,
   syncEventReminders,
   cancelEventReminders,
   checkForReminders,

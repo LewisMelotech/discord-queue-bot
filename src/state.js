@@ -11,10 +11,10 @@ function defaultState() {
       storytellerRoleId: null,
       defaultResultsChannelId: null,
       logChannelId: null,
-      // How long before each event to DM whoever's in it, in ms, longest
-      // first. null = the default (24h and 1h); [] = reminders off. Set
+      // "HH:MM" UK time to DM whoever's in a slot on the morning of its
+      // day. null = the default (09:00); "off" = reminders disabled. Set
       // via /reminders.
-      reminderLeadTimesMs: null,
+      reminderTime: null,
     },
     // Ordered array of user IDs. Index 0 is next up.
     queue: [],
@@ -30,9 +30,9 @@ function defaultState() {
     // regardless of any other action. Cleared automatically once it's
     // passed, or in bulk via /queue-snooze-clear.
     snoozedUntil: {},
-    // One entry per slot with a start time, still to come, that someone's
-    // in. Kept apart from round/lastRound so reminders still go out after
-    // the next round starts. Dropped once the event starts.
+    // One entry per slot on a known day, not yet over, that someone's in.
+    // Kept apart from round/lastRound so reminders still go out after the
+    // next round starts. Dropped once that day is over.
     upcomingEvents: [],
   };
 }
@@ -43,7 +43,6 @@ function defaultState() {
  *   name: string,        // display title, e.g. "Weekend Storytelling"
  *   slots: string[],     // slot labels in order, e.g. ["Friday", "Saturday AM", ...]
  *   intro: string | null, // custom DM greeting; null means use the auto-generated default
- *   time: string | null,  // "HH:MM" UK start time for slots whose label doesn't include one; null = none
  * }
  *
  * round shape:
@@ -53,7 +52,7 @@ function defaultState() {
  *   channelId: string,        // where the ping + final results get posted
  *   title: string,            // copied from the template at start time
  *   slots: string[],          // copied from the template at start time
- *   slotTimes: (number | null)[], // epoch ms each slot starts, null if unknown (see dates.slotStartTimes)
+ *   slotDates: (string | null)[], // "YYYY-MM-DD" UK day each slot falls on, null if unknown (see dates.slotDates)
  *   intro: string,            // resolved DM greeting (template's custom one, or the default) — fixed for the round
  *   filled: [{ slotIndex: number, userId: string }], // a userId can appear more than once
  *   askedThisRound: string[],      // userIds contacted at least once this round
@@ -73,7 +72,7 @@ function defaultState() {
  *   channelId: string,
  *   resultsMessageId: string,
  *   eventGroupId: string,
- *   slotTimes: (number | null)[],
+ *   slotDates: (string | null)[],
  * }
  *
  * upcomingEvents entry shape:
@@ -82,8 +81,8 @@ function defaultState() {
  *   slotIndex: number,
  *   title: string,
  *   slotLabel: string,
- *   startsAt: number,    // epoch ms
- *   attendees: { [userId]: { addedAt: number, sent: number[] } }, // sent = lead times (ms) already handled
+ *   date: string,        // "YYYY-MM-DD", UK
+ *   attendees: { [userId]: { addedAt: number, reminded: boolean } },
  * }
  */
 

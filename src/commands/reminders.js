@@ -1,55 +1,55 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { leadTimes, parseLeadTimes, describeLeadTimes } = require('../logic/reminders');
+const { reminderTime } = require('../logic/reminders');
+const { normalizeTime, formatDay } = require('../logic/dates');
 
 const MAX_LISTED_EVENTS = 15;
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('reminders')
-    .setDescription('Show upcoming event reminders, or change how long before an event they go out.')
+    .setDescription('Show upcoming event reminders, or change what time of day they go out.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((opt) =>
       opt
-        .setName('times')
-        .setDescription('How long before each event to DM whoever\'s in it, e.g. "24h, 1h" or "2d, 30m" — or "off"')
+        .setName('time')
+        .setDescription('UK time to DM people on the day of their slot, e.g. "9am" or "08:30" — or "off"')
         .setRequired(false),
     ),
 
   async execute(interaction, state, saveState) {
-    const input = interaction.options.getString('times');
+    const input = interaction.options.getString('time');
     if (input !== null) {
-      const parsed = parseLeadTimes(input);
-      if (!parsed) {
+      const off = ['off', 'none'].includes(input.trim().toLowerCase());
+      const time = off ? 'off' : normalizeTime(input);
+      if (!time) {
         await interaction.reply({
-          content:
-            `Couldn't read "${input}". Use a comma-separated list of up to 5 times like "24h, 1h" or "2d, 1h30m" ` +
-            '(d/h/m, at most 14 days each), or "off" to turn reminders off.',
+          content: `"${input}" isn't a time I recognise — try something like "9am" or "08:30", or "off" to turn reminders off.`,
           flags: MessageFlags.Ephemeral,
         });
         return;
       }
-      state.config.reminderLeadTimesMs = parsed;
+      state.config.reminderTime = time;
       saveState(state);
     }
 
-    const leads = leadTimes(state);
+    const time = reminderTime(state);
     const lines = [
-      leads.length
-        ? `Event reminders ${input !== null ? 'will now go' : 'go'} out ${describeLeadTimes(leads)} before each event, by DM to whoever's in the slot.`
-        : `Event reminders are ${input !== null ? 'now ' : ''}off. Run /reminders times:"24h, 1h" to turn them back on.`,
+      time
+        ? `Event reminders ${input !== null ? 'will now go' : 'go'} out at ${time} UK on the day of each slot, by DM to whoever's in it.`
+        : `Event reminders are ${input !== null ? 'now ' : ''}off. Run /reminders time:9am to turn them back on.`,
     ];
 
-    const upcoming = [...state.upcomingEvents].sort((a, b) => a.startsAt - b.startsAt);
+    const upcoming = [...state.upcomingEvents].sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex);
     if (upcoming.length === 0) {
       lines.push(
-        '\nNo upcoming events. A slot only gets reminders once someone picks it, and only if it has a start ' +
-          'time — include one in the slot name (e.g. "Sat {{next}} 19:00") or set time: on the template.',
+        '\nNo upcoming events. A slot gets a reminder once someone picks it, as long as its name has a day of ' +
+          'the week in it (e.g. "Sat AM" or "Sat {{next}}").',
       );
     } else {
       lines.push('\n**Upcoming:**');
       for (const event of upcoming.slice(0, MAX_LISTED_EVENTS)) {
         const who = Object.keys(event.attendees).map((id) => `<@${id}>`).join(', ');
-        lines.push(`• **${event.slotLabel}** (${event.title}) <t:${Math.floor(event.startsAt / 1000)}:f> — ${who}`);
+        lines.push(`• ${formatDay(event.date)} — **${event.slotLabel}** (${event.title}): ${who}`);
       }
       if (upcoming.length > MAX_LISTED_EVENTS) lines.push(`…and ${upcoming.length - MAX_LISTED_EVENTS} more.`);
     }

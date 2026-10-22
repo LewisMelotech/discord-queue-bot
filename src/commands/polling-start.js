@@ -1,25 +1,19 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags } = require('discord.js');
 const { startRound } = require('../logic/poll');
-const { withResolvedDates, slotStartTimes } = require('../logic/dates');
+const { withResolvedDates, slotDates } = require('../logic/dates');
 const { findTemplate, autocompleteTemplateName } = require('../logic/templates');
-const { leadTimes, describeLeadTimes } = require('../logic/reminders');
+const { reminderTime } = require('../logic/reminders');
 
-/** Tells the admin which slots will get event reminders, so a missing start time is caught up front. */
-function reminderSummary(state, slots, slotTimes) {
-  const leads = leadTimes(state);
-  if (leads.length === 0) return null;
-  const now = Date.now();
-  const timed = slots.map((label, i) => ({ label, startsAt: slotTimes[i] })).filter((s) => s.startsAt > now);
-  const untimed = slots.filter((_, i) => !(slotTimes[i] > now));
-  if (timed.length === 0) {
-    return (
-      'No slot has an upcoming start time, so no event reminders will go out. Add a time to slot names ' +
-      '(e.g. "Sat {{next}} 19:00") or set time: on the template.'
-    );
+/** Tells the admin which slots will get a morning-of reminder, so one with no day is caught up front. */
+function reminderSummary(state, slots, dates) {
+  const time = reminderTime(state);
+  if (!time) return null;
+  const undated = slots.filter((_, i) => !dates[i]);
+  if (undated.length === slots.length) {
+    return 'No slot name has a day of the week in it, so no event reminders will go out.';
   }
-  const lines = [`Event reminders go out ${describeLeadTimes(leads)} before:`];
-  lines.push(...timed.map((s) => `• ${s.label} — <t:${Math.floor(s.startsAt / 1000)}:f>`));
-  if (untimed.length) lines.push(`No upcoming start time, so no reminders: ${untimed.join(', ')}`);
+  const lines = [`Whoever's in each slot gets a reminder DM at ${time} UK on the day.`];
+  if (undated.length) lines.push(`No day of the week, so no reminder: ${undated.join(', ')}`);
   return lines.join('\n');
 }
 
@@ -76,7 +70,7 @@ module.exports = {
       ...template,
       name: titleOverride || template.name,
       slots: withResolvedDates(template.slots, now),
-      slotTimes: slotStartTimes(template.slots, template.time, now),
+      slotDates: slotDates(template.slots, now),
     };
 
     const channel = interaction.options.getChannel('channel') || null;
@@ -93,7 +87,7 @@ module.exports = {
 
     try {
       await startRound(interaction.client, state, saveState, channelId, runTemplate);
-      const summary = reminderSummary(state, runTemplate.slots, runTemplate.slotTimes);
+      const summary = reminderSummary(state, runTemplate.slots, runTemplate.slotDates);
       const status = state.round?.pendingUserId
         ? `Started **${runTemplate.name}**. DMing <@${state.round.pendingUserId}> first.`
         : 'Started the round, but it already concluded — check the results channel.';
