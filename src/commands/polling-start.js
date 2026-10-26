@@ -2,17 +2,17 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags } = 
 const { startRound } = require('../logic/poll');
 const { withResolvedDates, slotDates } = require('../logic/dates');
 const { findTemplate, autocompleteTemplateName } = require('../logic/templates');
-const { reminderTime } = require('../logic/reminders');
+const { reminderSchedule, describeSchedule } = require('../logic/reminders');
 
-/** Tells the admin which slots will get a morning-of reminder, so one with no day is caught up front. */
+/** Tells the admin which slots will get a reminder, so one with no day is caught up front. */
 function reminderSummary(state, slots, dates) {
-  const time = reminderTime(state);
-  if (!time) return null;
+  const schedule = reminderSchedule(state);
+  if (!schedule) return null;
   const undated = slots.filter((_, i) => !dates[i]);
   if (undated.length === slots.length) {
     return 'No slot name has a day of the week in it, so no event reminders will go out.';
   }
-  const lines = [`Whoever's in each slot gets a reminder DM at ${time} UK on the day.`];
+  const lines = [`Whoever's in each slot gets a reminder DM at ${describeSchedule(schedule)}.`];
   if (undated.length) lines.push(`No day of the week, so no reminder: ${undated.join(', ')}`);
   return lines.join('\n');
 }
