@@ -1,5 +1,5 @@
 const { postToLogChannel } = require('./log-channel');
-const { ukDateTimeToEpoch, ukEndOfDay } = require('./dates');
+const { ukDateTimeToEpoch, ukEndOfDay, ukToday } = require('./dates');
 
 const DEFAULT_REMINDER_TIME = '09:00';
 const REMINDER_CHECK_INTERVAL_MS = 60 * 1000;
@@ -10,9 +10,19 @@ function configuredReminderTime(state) {
   return time && time !== 'off' ? time : DEFAULT_REMINDER_TIME;
 }
 
-/** "HH:MM" UK time the morning-of reminder goes out, or null while reminders are off — the default until /reminders-setup turns them on. */
-function reminderTime(state) {
-  return state.config.remindersEnabled ? configuredReminderTime(state) : null;
+/** The configured schedule, on or off: { time: "HH:MM" UK, daysBefore: 0 (on the day) or 1 (the day before) }. */
+function configuredSchedule(state) {
+  return { time: configuredReminderTime(state), daysBefore: state.config.reminderDaysBefore ?? 0 };
+}
+
+/** When reminders go out (see configuredSchedule), or null while they're off — the default until /reminders-setup turns them on. */
+function reminderSchedule(state) {
+  return state.config.remindersEnabled ? configuredSchedule(state) : null;
+}
+
+/** { time: "19:00", daysBefore: 1 } -> "19:00 UK the day before". */
+function describeSchedule({ time, daysBefore }) {
+  return `${time} UK ${daysBefore ? 'the day before' : 'on the day'}`;
 }
 
 /** ["a"] -> "a", ["a", "b", "c"] -> "a, b and c". */
@@ -24,7 +34,7 @@ function joinList(items) {
  * Brings state.upcomingEvents in line with a round's (or the last completed
  * round's) slot assignments: one entry per slot that falls on a known day,
  * that day isn't over yet, and someone's in it. Call it whenever who's in
- * which slot changes. Someone added after that day's reminder time doesn't
+ * which slot changes. Someone added after the slot's reminder time doesn't
  * get one — they've only just signed up. No-op for rounds saved before
  * reminders existed (no eventGroupId/slotDates).
  */
@@ -78,17 +88,18 @@ async function dropOutHint(client, state, events) {
   return "Can't make it any more? Let an admin know as soon as you can.";
 }
 
-/** One DM per person per check, even if they're in more than one slot today. */
-async function sendReminder(client, state, userId, events) {
+/** One DM per person per day of slots, even if they're in more than one slot that day. */
+async function sendReminder(client, state, userId, events, today) {
+  const when = events[0].date === today ? 'today' : 'tomorrow';
   const labelsByTitle = new Map();
   for (const e of events) labelsByTitle.set(e.title, [...(labelsByTitle.get(e.title) ?? []), `**${e.slotLabel}**`]);
   const slots = joinList([...labelsByTitle].map(([title, labels]) => `${joinList(labels)} in **${title}**`));
   try {
     const user = await client.users.fetch(userId);
     await user.send(
-      `☀️ Morning! Just a reminder that you're down for ${slots} today.\n${await dropOutHint(client, state, events)}`,
+      `⏰ Just a reminder that you're down for ${slots} ${when}.\n${await dropOutHint(client, state, events)}`,
     );
-    await postToLogChannel(client, state, `☀️ Sent <@${userId}> their reminder for ${slots}.`);
+    await postToLogChannel(client, state, `⏰ Sent <@${userId}> their reminder for ${slots} (${when}).`);
   } catch (err) {
     console.error(`Could not DM ${userId} their event reminder:`, err.message);
     await postToLogChannel(client, state, `⚠️ Couldn't DM <@${userId}> their reminder for ${slots} — DMs likely closed.`);
@@ -96,12 +107,14 @@ async function sendReminder(client, state, userId, events) {
 }
 
 /**
- * Checked every REMINDER_CHECK_INTERVAL_MS (see index.js): once a slot's
- * day reaches the configured reminder time, DMs everyone in it. If the bot
- * was offline at that time, it catches up as soon as it's back, as long as
- * it's still that day. Each reminder is marked sent and persisted before
- * the DM is attempted, so a restart or a failed DM never repeats one.
- * Events are dropped once their day is over.
+ * Checked every REMINDER_CHECK_INTERVAL_MS (see index.js): once the
+ * configured reminder time comes round (on the slot's day, or the day
+ * before), DMs everyone in it. If the bot was offline at that time, it
+ * catches up as soon as it's back, as long as the slot's day isn't over —
+ * the DM says "today" or "tomorrow" to match when it actually goes out.
+ * Each reminder is marked sent and persisted before the DM is attempted,
+ * so a restart or a failed DM never repeats one. Events are dropped once
+ * their day is over.
  */
 async function checkForReminders(client, state, saveState) {
   const now = Date.now();
@@ -111,30 +124,33 @@ async function checkForReminders(client, state, saveState) {
     saveState(state);
   }
 
-  const time = reminderTime(state);
-  if (!time) return;
+  const schedule = reminderSchedule(state);
+  if (!schedule) return;
 
-  const due = new Map(); // userId -> events
+  const due = new Map(); // "userId:date" -> { userId, events }
   for (const event of upcoming) {
-    const sendAt = ukDateTimeToEpoch(event.date, time);
+    const sendAt = ukDateTimeToEpoch(event.date, schedule.time, schedule.daysBefore);
     if (now < sendAt) continue;
     for (const [userId, attendee] of Object.entries(event.attendees)) {
       if (attendee.reminded || attendee.addedAt >= sendAt) continue;
       attendee.reminded = true;
-      due.set(userId, [...(due.get(userId) ?? []), event]);
+      const key = `${userId}:${event.date}`;
+      due.set(key, { userId, events: [...(due.get(key)?.events ?? []), event] });
     }
   }
   if (due.size === 0) return;
 
   saveState(state);
-  for (const [userId, events] of due) {
-    await sendReminder(client, state, userId, events);
+  const today = ukToday(new Date(now));
+  for (const { userId, events } of due.values()) {
+    await sendReminder(client, state, userId, events, today);
   }
 }
 
 module.exports = {
-  reminderTime,
-  configuredReminderTime,
+  reminderSchedule,
+  configuredSchedule,
+  describeSchedule,
   syncEventReminders,
   cancelEventReminders,
   checkForReminders,

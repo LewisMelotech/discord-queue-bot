@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { reminderTime, configuredReminderTime } = require('../logic/reminders');
+const { reminderSchedule, configuredSchedule, describeSchedule } = require('../logic/reminders');
 const { normalizeTime, formatDay } = require('../logic/dates');
 
 const MAX_LISTED_EVENTS = 15;
@@ -7,23 +7,31 @@ const MAX_LISTED_EVENTS = 15;
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('reminders-setup')
-    .setDescription('Turn event reminders on or off, and set what time they go out on the day.')
+    .setDescription('Turn event reminders on or off, and set when they go out.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addBooleanOption((opt) =>
       opt
         .setName('enabled')
-        .setDescription('DM whoever is in a slot on the morning of its day (off until turned on here)')
+        .setDescription('DM whoever is in a slot ahead of it (off until turned on here)')
         .setRequired(false),
     )
     .addStringOption((opt) =>
       opt
         .setName('time')
-        .setDescription('UK time to send them on the day, e.g. "9am" or "08:30" (default 9am)')
+        .setDescription('UK time to send them, e.g. "9am" or "7pm" (default 9am)')
         .setRequired(false),
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName('day')
+        .setDescription('Send on the day of the slot, or the day before (default on the day)')
+        .setRequired(false)
+        .addChoices({ name: 'On the day', value: 0 }, { name: 'The day before', value: 1 }),
     ),
 
   async execute(interaction, state, saveState) {
     const enabled = interaction.options.getBoolean('enabled');
+    const daysBefore = interaction.options.getInteger('day');
     const timeInput = interaction.options.getString('time');
     const time = timeInput === null ? null : normalizeTime(timeInput);
     if (timeInput !== null && !time) {
@@ -34,20 +42,22 @@ module.exports = {
       return;
     }
 
-    // Setting a time on its own turns reminders on, since that's what it's for.
-    const changed = enabled !== null || time !== null;
+    // Setting a time or day on its own turns reminders on, since that's what it's for.
+    const scheduleChanged = time !== null || daysBefore !== null;
+    const changed = enabled !== null || scheduleChanged;
     if (time) state.config.reminderTime = time;
+    if (daysBefore !== null) state.config.reminderDaysBefore = daysBefore;
     if (enabled !== null) state.config.remindersEnabled = enabled;
-    else if (time) state.config.remindersEnabled = true;
+    else if (scheduleChanged) state.config.remindersEnabled = true;
     if (changed) saveState(state);
 
     const now = changed ? 'now ' : '';
-    const activeTime = reminderTime(state);
+    const schedule = reminderSchedule(state);
     const lines = [
-      activeTime
-        ? `Event reminders are ${now}on: whoever's in a slot gets a DM at ${activeTime} UK on the day.`
+      schedule
+        ? `Event reminders are ${now}on: whoever's in a slot gets a DM at ${describeSchedule(schedule)}.`
         : `Event reminders are ${now}off. Run /reminders-setup enabled:True to turn them on ` +
-          `(they'll go out at ${configuredReminderTime(state)} UK on the day).`,
+          `(they'll go out at ${describeSchedule(configuredSchedule(state))}).`,
     ];
 
     const upcoming = [...state.upcomingEvents].sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex);

@@ -135,11 +135,17 @@ function slotDates(slots, now = new Date()) {
   });
 }
 
-/** Epoch ms of an "HH:MM" UK time on a "YYYY-MM-DD" date. */
-function ukDateTimeToEpoch(date, time) {
+/** Epoch ms of an "HH:MM" UK time on a "YYYY-MM-DD" date, or that many days before it. */
+function ukDateTimeToEpoch(date, time, daysBefore = 0) {
   const [year, month, day] = date.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
-  return ukLocalToEpoch(year, month, day, hour, minute);
+  return ukLocalToEpoch(year, month, day - daysBefore, hour, minute);
+}
+
+/** Today's UK date as "YYYY-MM-DD". */
+function ukToday(now = new Date()) {
+  const { year, month, day } = ukDateParts(now);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 /** Epoch ms of the UK midnight that ends a "YYYY-MM-DD" date. */
@@ -155,4 +161,4 @@ function formatDay(date) {
     .replace(',', '');
 }
 
-module.exports = { withResolvedDates, slotDates, normalizeTime, ukDateTimeToEpoch, ukEndOfDay, formatDay };
+module.exports = { withResolvedDates, slotDates, normalizeTime, ukDateTimeToEpoch, ukEndOfDay, ukToday, formatDay };
